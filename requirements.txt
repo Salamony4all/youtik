@@ -1,0 +1,38 @@
+# Core
+streamlit
+python-dotenv
+
+# Media Ingest
+yt-dlp
+
+# Transcription & Audio (Local Brawn)
+stable-ts
+demucs
+openai-whisper
+faster-whisper
+torch
+torchaudio
+
+# Semantic Intelligence (Google Brain)
+google-genai
+
+# Assets & Web
+gallery-dl
+requests
+
+# Server & API
+fastapi
+uvicorn
+pydantic
+python-multipart
+
+# Rendering & Subtitles
+pycaps
+ffmpeg-python
+
+# Publishing (Stubs for now)
+# TikTokAutoUploader
+
+# TTS Engine
+supertonic
+soundfile
