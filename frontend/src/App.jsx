@@ -110,7 +110,7 @@ const PremiumSelect = ({ label, value, options, onChange, icon: Icon, color, isA
   return (
     <div className="relative space-y-3" ref={dropdownRef}>
       <div className="flex items-center justify-between px-1">
-        <label className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500 flex items-center gap-2">
+        <label className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-300 flex items-center gap-2">
           <Icon size={14} className={color} />
           {label}
         </label>
@@ -137,7 +137,7 @@ const PremiumSelect = ({ label, value, options, onChange, icon: Icon, color, isA
               </span>
             )}
             {selectedOption?.desc && (
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium line-clamp-1">
+              <span className="text-[10px] text-slate-500 dark:text-slate-300 font-medium line-clamp-1">
                 {selectedOption.desc}
               </span>
             )}
@@ -170,7 +170,7 @@ const PremiumSelect = ({ label, value, options, onChange, icon: Icon, color, isA
                         {isSelected && <Check size={14} className="text-yt-red" />}
                       </div>
                       {id && <span className="text-[8px] font-mono bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-300 px-2 py-1 rounded max-w-full break-all">{id}</span>}
-                      {opt.desc && <span className="text-[10px] text-slate-500 dark:text-slate-400 text-left leading-relaxed">{opt.desc}</span>}
+                      {opt.desc && <span className="text-[10px] text-slate-500 dark:text-slate-300 text-left leading-relaxed">{opt.desc}</span>}
                     </button>
                   );
                 })}
@@ -361,7 +361,7 @@ const ReviewPortal = ({ sessionId, onCommit, isDark }) => {
   if (loading) return (
     <div className="flex flex-col items-center justify-center p-20 space-y-4">
       <div className="w-12 h-12 border-4 border-yt-red border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-slate-500 font-black uppercase tracking-widest text-xs">Loading AI Analysis...</p>
+      <p className="text-slate-500 dark:text-slate-300 font-black uppercase tracking-widest text-xs">Loading AI Analysis...</p>
     </div>
   );
 
@@ -370,7 +370,7 @@ const ReviewPortal = ({ sessionId, onCommit, isDark }) => {
       <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center text-red-500"><AlertCircle size={32} /></div>
       <div className="text-center">
         <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Analysis Sync Failed</h3>
-        <p className="text-slate-500 font-bold max-w-xs mx-auto">The AI semantic data could not be retrieved. Please check the backend logs.</p>
+        <p className="text-slate-500 dark:text-slate-300 font-bold max-w-xs mx-auto">The AI semantic data could not be retrieved. Please check the backend logs.</p>
       </div>
       <button onClick={() => window.location.reload()} className="px-6 py-2 bg-slate-200 dark:bg-white/10 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 transition-all">Retry Sync</button>
     </div>
@@ -381,7 +381,7 @@ const ReviewPortal = ({ sessionId, onCommit, isDark }) => {
       <div className="flex flex-col md:flex-row items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Studio Review Gate</h2>
-          <p className="text-slate-500 dark:text-slate-400 font-bold">Refine stanzas and lyrics before high-precision rendering.</p>
+          <p className="text-slate-500 dark:text-slate-300 font-bold">Refine stanzas and lyrics before high-precision rendering.</p>
         </div>
         <div className="flex items-center gap-4">
           <button onClick={handleFinalize} disabled={committing} className="btn-primary flex items-center gap-3 px-8 py-4 shadow-[0_20px_40px_rgba(255,0,0,0.3)]">
@@ -425,7 +425,7 @@ const ReviewPortal = ({ sessionId, onCommit, isDark }) => {
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Cinematic Lyrics (ASS Target)</label>
+                    <label className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300">Cinematic Lyrics (ASS Target)</label>
                     <span className={`text-[10px] font-bold uppercase tracking-widest italic transition-colors ${stanza.manually_edited ? 'text-emerald-500' : 'text-yt-red/50'}`}>
                       {stanza.manually_edited ? 'Manual Edit Saved' : 'User Correction Required'}
                     </span>
@@ -436,7 +436,7 @@ const ReviewPortal = ({ sessionId, onCommit, isDark }) => {
                     value={stanza.text}
                     onChange={(e) => handleUpdateStanza(idx, 'text', e.target.value)}
                     placeholder="Enter the extracted lyrics here for precise subtitle mapping..."
-                    className="w-full bg-slate-50 dark:bg-black/60 border border-slate-200 dark:border-white/10 rounded-2xl p-6 text-xl font-bold text-slate-700 dark:text-slate-100 leading-relaxed focus:border-yt-red/50 focus:ring-4 focus:ring-yt-red/5 transition-all min-h-[140px] custom-scrollbar placeholder:text-slate-300 dark:placeholder:text-slate-700 text-right"
+                    className="w-full bg-slate-50 dark:bg-black/60 border border-slate-200 dark:border-white/10 rounded-2xl p-6 text-xl font-bold text-slate-700 dark:text-slate-100 leading-relaxed focus:border-yt-red/50 focus:ring-4 focus:ring-yt-red/5 transition-all min-h-[140px] custom-scrollbar placeholder:text-slate-300 dark:placeholder:text-slate-500 text-right"
                   />
 
                   <div className="pt-4 flex items-center gap-3 border-t border-slate-200 dark:border-white/5">
@@ -447,12 +447,12 @@ const ReviewPortal = ({ sessionId, onCommit, isDark }) => {
               </div>
 
               <div className="w-full lg:w-80 space-y-4">
-                <label className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">AI Visual Concepts</label>
+                <label className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300">AI Visual Concepts</label>
                 <div className="space-y-3">
                   {(stanza.visual_queries || []).map((query, qIdx) => (
                     <div key={qIdx} className="flex items-center gap-3 bg-slate-100 dark:bg-white/5 px-5 py-3 rounded-xl border border-slate-200 dark:border-white/10 group/item hover:border-yt-red/20 transition-all">
                       <Sparkles size={14} className="text-yellow-500 shrink-0" />
-                      <input type="text" value={query} onChange={(e) => { const newQueries = [...stanza.visual_queries]; newQueries[qIdx] = e.target.value; handleUpdateStanza(idx, 'visual_queries', newQueries); }} className="bg-transparent border-none outline-none text-xs font-bold text-slate-600 dark:text-slate-400 w-full" />
+                      <input type="text" value={query} onChange={(e) => { const newQueries = [...stanza.visual_queries]; newQueries[qIdx] = e.target.value; handleUpdateStanza(idx, 'visual_queries', newQueries); }} className="bg-transparent border-none outline-none text-xs font-bold text-slate-600 dark:text-slate-200 w-full" />
                     </div>
                   ))}
                   <button onClick={() => { const newQueries = [...(stanza.visual_queries || []), "new cinematic query"]; handleUpdateStanza(idx, 'visual_queries', newQueries); }} className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-slate-300 dark:border-white/10 rounded-xl text-[10px] font-black text-slate-400 hover:border-yt-red hover:text-yt-red hover:bg-yt-red/5 transition-all">
@@ -467,7 +467,7 @@ const ReviewPortal = ({ sessionId, onCommit, isDark }) => {
           <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner"><Plus size={32} /></div>
           <div className="flex flex-col items-center gap-1">
             <span className="font-black uppercase tracking-[0.3em] text-sm">Add Precision Segment</span>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Manually slice a new stanza</span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Manually slice a new stanza</span>
           </div>
         </button>
       </div>
@@ -655,36 +655,36 @@ function App() {
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-tk-cyan/10 blur-[120px] rounded-full animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
       </div>
 
-      <nav className="relative z-50 flex items-center justify-between px-8 py-6 border-b border-white/5 backdrop-blur-xl transition-all duration-500">
+      <nav className="relative z-50 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 border-b border-white/5 backdrop-blur-xl transition-all duration-500">
         <div className="flex items-center gap-4 group cursor-pointer">
-          <div className="bg-[#FF0000] px-4 py-2 rounded-[14px] flex items-center justify-center shadow-[0_0_30px_rgba(255,0,0,0.4)] group-hover:scale-105 transition-transform duration-300">
-            <span className="text-white font-black italic text-3xl tracking-tighter leading-none">You</span>
+          <div className="bg-[#FF0000] px-3 sm:px-4 py-1.5 sm:py-2 rounded-[12px] sm:rounded-[14px] flex items-center justify-center shadow-[0_0_30px_rgba(255,0,0,0.4)] group-hover:scale-105 transition-transform duration-300">
+            <span className="text-white font-black italic text-xl sm:text-3xl tracking-tighter leading-none">You</span>
           </div>
           <div className="relative flex items-center">
-            <span className={`${isDark ? 'text-white' : 'text-slate-900'} font-black text-4xl tracking-tighter hover:animate-glitch inline-block`} style={{ textShadow: isDark ? '3px 0 #25F4EE, -3px 0 #FE2C55' : 'none' }}>
+            <span className={`${isDark ? 'text-white' : 'text-slate-900'} font-black text-2xl sm:text-4xl tracking-tighter hover:animate-glitch inline-block`} style={{ textShadow: isDark ? '3px 0 #25F4EE, -3px 0 #FE2C55' : 'none' }}>
               Tik
             </span>
-            <div className="ml-5 h-8 w-px bg-slate-300 dark:bg-white/20" />
-            <div className="flex flex-col ml-5">
-              <span className="text-[11px] font-black tracking-[0.3em] text-slate-500 uppercase">Studio</span>
-              <span className="text-[11px] font-black tracking-[0.3em] text-yt-red uppercase">V6.0</span>
+            <div className="ml-3 sm:ml-5 h-6 sm:h-8 w-px bg-slate-300 dark:bg-white/20" />
+            <div className="flex flex-col ml-3 sm:ml-5">
+              <span className="text-[9px] sm:text-[11px] font-black tracking-[0.3em] text-slate-500 dark:text-slate-300 uppercase">Studio</span>
+              <span className="text-[9px] sm:text-[11px] font-black tracking-[0.3em] text-yt-red uppercase">V6.0</span>
             </div>
           </div>
         </div>
 
         <div className="flex bg-slate-200 dark:bg-white/5 p-1 rounded-xl border border-slate-300 dark:border-white/10 transition-colors">
-          <button onClick={() => setActiveTab('studio')} className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-all ${activeTab === 'studio' ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-lg' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>
-            <Monitor size={18} /> <span className="font-medium">Studio</span>
+          <button onClick={() => setActiveTab('studio')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 rounded-lg transition-all text-sm ${activeTab === 'studio' ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+            <Monitor size={16} /> <span className="font-medium hidden sm:inline">Studio</span>
           </button>
-          <button onClick={() => setActiveTab('results')} className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-all ${activeTab === 'results' ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-lg' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>
-            <Layout size={18} /> <span className="font-medium">Gallery</span>
-            {results.length > 0 && <span className="flex h-2 w-2 rounded-full bg-yt-red animate-pulse ml-2"></span>}
+          <button onClick={() => setActiveTab('results')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 rounded-lg transition-all text-sm ${activeTab === 'results' ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+            <Layout size={16} /> <span className="font-medium hidden sm:inline">Gallery</span>
+            {results.length > 0 && <span className="flex h-2 w-2 rounded-full bg-yt-red animate-pulse ml-1 sm:ml-2"></span>}
           </button>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="hidden md:flex flex-col items-end">
-            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">System Status</div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">System Status</div>
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
               <span className="text-xs font-mono text-green-500">BACKEND_ONLINE</span>
@@ -700,14 +700,14 @@ function App() {
             </button>
             <AnimatePresence>
               {showSettings && (
-                <motion.div initial={{ opacity: 0, y: 15, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 15, scale: 0.95 }} className="absolute right-0 mt-6 w-[420px] glass-card p-0 shadow-[0_40px_100px_rgba(0,0,0,0.5)] border-white/10 z-[100] overflow-visible">
+                <motion.div initial={{ opacity: 0, y: 15, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 15, scale: 0.95 }} className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto top-16 sm:top-auto mt-2 sm:mt-6 w-auto sm:w-[420px] glass-card p-0 shadow-[0_40px_100px_rgba(0,0,0,0.5)] border-white/10 z-[100] overflow-visible max-h-[80vh] overflow-y-auto">
                   <div className="bg-gradient-to-r from-slate-50 to-white dark:from-[#151515] dark:to-[#1a1a1a] p-8 border-b border-slate-200 dark:border-white/5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-xl bg-yt-red/10 flex items-center justify-center text-yt-red shadow-inner"><Settings size={22} className="animate-spin-slow" /></div>
                         <div>
                           <h4 className="text-[13px] font-black uppercase tracking-[0.2em] text-slate-900 dark:text-white">Studio Preferences</h4>
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Configuration v6.0.4</p>
+                          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">Configuration v6.0.4</p>
                         </div>
                       </div>
                       <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/10 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
@@ -742,16 +742,26 @@ function App() {
         </div>
       </nav>
 
-      <main className="relative z-10 max-w-7xl mx-auto px-6 py-12">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <AnimatePresence mode="wait">
           {activeTab === 'studio' ? (
             <motion.div key="studio" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-12">
               <div className="text-center space-y-6 max-w-4xl mx-auto">
-                <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-7xl font-black tracking-tight leading-[0.95] text-slate-900 dark:text-white">
+                {/* Hero Logo */}
+                <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1, type: 'spring', stiffness: 200 }} className="flex items-center justify-center gap-3 sm:gap-4 mx-auto">
+                  <div className="bg-[#FF0000] px-5 sm:px-8 py-3 sm:py-4 rounded-[18px] sm:rounded-[22px] flex items-center justify-center shadow-[0_0_50px_rgba(255,0,0,0.5)] hover:scale-105 transition-transform duration-300">
+                    <span className="text-white font-black italic text-4xl sm:text-6xl tracking-tighter leading-none">You</span>
+                  </div>
+                  <span className={`${isDark ? 'text-white' : 'text-slate-900'} font-black text-5xl sm:text-7xl tracking-tighter`} style={{ textShadow: isDark ? '4px 0 #25F4EE, -4px 0 #FE2C55' : 'none' }}>
+                    Tik
+                  </span>
+                </motion.div>
+
+                <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-3xl sm:text-5xl md:text-7xl font-black tracking-tight leading-[0.95] text-slate-900 dark:text-white">
                   Turn Any Video into <br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-yt-red via-tk-pink to-tk-cyan">Viral Masterpieces</span>
                 </motion.h1>
-                <p className="text-slate-500 text-xl max-w-2xl mx-auto font-medium">
+                <p className="text-slate-500 dark:text-slate-300 text-base sm:text-xl max-w-2xl mx-auto font-medium">
                   Professional Egyptian AI processing with cinematic rendering. Auto-segments, transcribes, and composites your content for maximum engagement.
                 </p>
               </div>
@@ -782,7 +792,7 @@ function App() {
                             </div>
                             <div className="flex items-center gap-3 px-4 py-3 bg-slate-200/50 dark:bg-white/10 rounded-xl">
                               <div className="flex flex-col">
-                                <span className="text-[10px] font-black uppercase tracking-tighter text-slate-500">Workflow</span>
+                                <span className="text-[10px] font-black uppercase tracking-tighter text-slate-500 dark:text-slate-400">Workflow</span>
                                 <span className="text-xs font-bold text-slate-900 dark:text-white">Let Me Edit</span>
                               </div>
                               <button onClick={() => setManualReview(!manualReview)} className={`w-12 h-6 rounded-full transition-all relative ${manualReview ? 'bg-yt-red' : 'bg-slate-300 dark:bg-white/10'}`}>
@@ -810,7 +820,7 @@ function App() {
                             <textarea dir="auto" placeholder="Paste or type your lyrics here (Leave a blank line between stanzas)..." className="bg-transparent border-none outline-none w-full text-[15px] text-slate-900 dark:text-white font-bold resize-none h-40 placeholder:text-slate-400 custom-scrollbar" value={promptText} onChange={(e) => setPromptText(e.target.value)} />
                           </div>
                           <div className="bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 p-5">
-                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3 flex items-center gap-2">
+                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300 mb-3 flex items-center gap-2">
                               <Music size={14} className="text-tk-cyan" /> Master Track Mix (Optional)
                             </label>
                             <div className="flex flex-wrap gap-2">
@@ -818,7 +828,7 @@ function App() {
                                 <button
                                   key={genre}
                                   onClick={() => toggleGenre(genre)}
-                                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all border shadow-sm active:scale-95 ${selectedGenres.includes(genre) ? 'bg-tk-cyan text-white border-tk-cyan' : 'bg-white dark:bg-black text-slate-500 border-slate-200 dark:border-white/10 hover:border-tk-cyan/50'}`}
+                                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all border shadow-sm active:scale-95 ${selectedGenres.includes(genre) ? 'bg-tk-cyan text-white border-tk-cyan' : 'bg-white dark:bg-black text-slate-500 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:border-tk-cyan/50'}`}
                                 >
                                   {genre}
                                 </button>
@@ -828,7 +838,7 @@ function App() {
 
                           <div className="bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 p-5">
                             <div className="flex items-center justify-between mb-3">
-                              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
+                              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300 flex items-center gap-2">
                                 <Settings size={14} className="text-emerald-500" /> Target Duration
                               </label>
                               <span className="text-xs font-black text-emerald-500">{targetDuration}s</span>
@@ -862,14 +872,14 @@ function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 pt-6 sm:pt-8">
                 <div className="lg:col-span-2 space-y-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Production Pipeline</h3>
+                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300">Production Pipeline</h3>
                     <div className="text-[10px] font-mono px-3 py-1 bg-yt-red/10 rounded-full border border-yt-red/20 text-yt-red">{status} — {Math.round(progress)}%</div>
                   </div>
 
-                  <div className="glass-card p-10 space-y-12">
+                  <div className="glass-card p-4 sm:p-10 space-y-8 sm:space-y-12 overflow-x-auto">
                     <div className="relative flex justify-between">
                       <div className="absolute top-6 left-0 w-full h-[1px] bg-white/5">
                         <motion.div className="h-full bg-gradient-to-r from-yt-red via-tk-pink to-tk-cyan" initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 1.5, ease: "circOut" }} />
@@ -887,7 +897,7 @@ function App() {
                               {isActive && <motion.div className="absolute -inset-2 rounded-2xl border border-yt-red/50" animate={{ scale: [1, 1.4, 1], opacity: [0.5, 0, 0.5] }} transition={{ repeat: Infinity, duration: 2 }} />}
                             </motion.div>
                             <div className="flex flex-col items-center gap-1">
-                              <span className={`text-[10px] font-black uppercase tracking-widest text-center ${isActive ? 'text-white' : 'text-slate-500'}`}>{step.title}</span>
+                              <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-center ${isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`}>{step.title}</span>
                               {isActive && <span className="text-[8px] font-mono text-yt-red animate-pulse">RUNNING...</span>}
                             </div>
                           </div>
@@ -897,7 +907,7 @@ function App() {
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between text-slate-500">
+                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-300">
                       <div className="flex items-center gap-2">
                         <Cpu size={14} className="text-yt-red" />
                         <span className="text-[10px] font-black uppercase tracking-[0.2em]">Live Pipeline Status</span>
@@ -932,7 +942,7 @@ function App() {
 
                 <div className="space-y-6">
                   <div className="glass-card p-8 space-y-8">
-                    <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Production Engine</h4>
+                    <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300">Production Engine</h4>
                     <div className="space-y-6">
                       <div className="space-y-1">
                         <label className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Transcription Model</label>
@@ -955,7 +965,7 @@ function App() {
                     </div>
                     <div className="pt-8 border-t border-slate-200 dark:border-white/5 space-y-4">
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-slate-500">Isolated Clips</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Isolated Clips</span>
                         <span className="font-black text-yt-red">{results.length}</span>
                       </div>
                       <div className="h-1.5 w-full bg-slate-200 dark:bg-white/5 rounded-full overflow-hidden">
@@ -968,10 +978,10 @@ function App() {
             </motion.div>
           ) : (
             <motion.div key="results" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
-              <div className="flex items-end justify-between border-b border-slate-200 dark:border-white/5 pb-8">
+              <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 border-b border-slate-200 dark:border-white/5 pb-6 sm:pb-8">
                 <div className="space-y-2">
-                  <h2 className="text-5xl font-black tracking-tight italic text-slate-900 dark:text-white">Production Gallery</h2>
-                  <p className="text-slate-500 font-medium tracking-wide">High-fidelity assets ready for distribution.</p>
+                  <h2 className="text-3xl sm:text-5xl font-black tracking-tight italic text-slate-900 dark:text-white">Production Gallery</h2>
+                  <p className="text-slate-500 dark:text-slate-300 font-medium tracking-wide">High-fidelity assets ready for distribution.</p>
                 </div>
                 <button onClick={() => setActiveTab('studio')} className="group flex items-center gap-3 text-sm font-black uppercase tracking-[0.2em] text-slate-400 hover:text-yt-red transition-colors">
                   Return to Studio <ChevronRight size={20} className="group-hover:translate-x-2 transition-transform" />
@@ -983,12 +993,12 @@ function App() {
                   <div className="w-24 h-24 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 border border-slate-200 dark:border-white/5"><Layout size={48} /></div>
                   <div className="space-y-2">
                     <h3 className="text-2xl font-black text-slate-900 dark:text-white">Archive Empty</h3>
-                    <p className="text-slate-500 max-w-xs mx-auto">No clips have been generated in this session yet.</p>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-xs mx-auto">No clips have been generated in this session yet.</p>
                   </div>
                   <button onClick={() => setActiveTab('studio')} className="btn-primary text-xs uppercase tracking-widest px-10 text-white">Start Production</button>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
+                <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 sm:gap-5">
                   {results.map((clip, idx) => (
                     <motion.div key={idx} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }} className="group relative glass-card overflow-hidden bg-white/50 dark:bg-black/40 border-slate-200 dark:border-white/5 hover:border-yt-red/30 transition-all duration-500">
                       <div className="aspect-[9/16] relative overflow-hidden">
@@ -1040,14 +1050,14 @@ function App() {
         )}
       </AnimatePresence>
 
-      <footer className={`relative z-10 mt-20 px-12 py-20 border-t transition-colors duration-500 ${isDark ? 'border-white/5 bg-black' : 'border-slate-200 bg-slate-100'}`}>
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 text-slate-500">
+      <footer className={`relative z-10 mt-12 sm:mt-20 px-4 sm:px-12 py-12 sm:py-20 border-t transition-colors duration-500 ${isDark ? 'border-white/5 bg-black' : 'border-slate-200 bg-slate-100'}`}>
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 sm:gap-12 text-slate-500 dark:text-slate-400">
           <div className="col-span-2 space-y-6">
             <div className={`flex items-center gap-2 transition-all duration-500 ${isDark ? 'grayscale opacity-50' : ''}`}>
               <div className="bg-yt-red text-white px-3 py-1 rounded-lg font-black italic text-xl shadow-lg">You</div>
               <span className={`font-black text-2xl ${isDark ? 'text-white' : 'text-slate-900'}`}>Tik</span>
             </div>
-            <p className="text-sm max-w-sm leading-relaxed font-medium">The world's first AI-powered video production suite optimized for Egyptian dialect and culture. Built for creators, by engineers.</p>
+            <p className="text-sm max-w-sm leading-relaxed font-medium text-slate-500 dark:text-slate-400">The world's first AI-powered video production suite optimized for Egyptian dialect and culture. Built for creators, by engineers.</p>
           </div>
           <div className="space-y-4">
             <h5 className="text-slate-900 dark:text-white font-black uppercase text-xs tracking-[0.2em]">Engine</h5>

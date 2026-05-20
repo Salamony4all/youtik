@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --color-yt-red: #FF0000;
@@ -36,13 +37,14 @@
 }
 
 .dark {
-  --bg-studio: #050505;
-  --text-main: #f8fafc;
-  --text-dim: #94a3b8;
-  --glass-fill: rgba(10, 10, 10, 0.7);
-  --glass-outline: rgba(255, 255, 255, 0.05);
-  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  --nav-bg: rgba(0, 0, 0, 0.3);
+  /* Dark mode palette – higher contrast */
+  --bg-studio: #020202; /* deeper black for background */
+  --text-main: #e5e5e5; /* slightly softer white to reduce glare */
+  --text-dim: #a0a0a0; /* lighter dim text for readability */
+  --glass-fill: rgba(20, 20, 20, 0.8); /* more opaque glass */
+  --glass-outline: rgba(255, 255, 255, 0.1); /* clearer outline */
+  --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5); /* stronger shadow */
+  --nav-bg: rgba(0, 0, 0, 0.5); /* more visible navigation background */
 }
 
 @layer base {
@@ -63,12 +65,23 @@
 
   .btn-primary {
     @apply relative overflow-hidden px-8 py-3 rounded-xl font-bold transition-all active:scale-95;
-    background: linear-gradient(135deg, #FF0000 0%, #FE2C55 100%);
-    box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+    background: linear-gradient(135deg, #FF3B3B 0%, #FF7F7F 100%);
+    box-shadow: 0 0 20px rgba(255, 120, 120, 0.4);
   }
 
   .btn-primary:hover {
-    box-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
+    background: linear-gradient(135deg, #FF7F7F 0%, #FFB2B2 100%);
+    box-shadow: 0 0 30px rgba(255, 150, 150, 0.6);
+  }
+
+  .dark .btn-primary {
+    background: linear-gradient(135deg, #ff5a5a 0%, #ff8c8c 100%);
+    box-shadow: 0 0 20px rgba(255, 80, 80, 0.4);
+  }
+
+  .dark .btn-primary:hover {
+    background: linear-gradient(135deg, #ff8c8c 0%, #ffb2b2 100%);
+    box-shadow: 0 0 30px rgba(255, 120, 120, 0.6);
   }
 
   .custom-scrollbar::-webkit-scrollbar {
@@ -101,7 +114,7 @@
   }
 
   .dark .custom-audio-player {
-    filter: invert(1) hue-rotate(180deg);
+    filter: invert(1) hue-rotate(180deg) contrast(1.2);
   }
 
   .custom-audio-player::-webkit-media-controls-enclosure {
