@@ -123,10 +123,61 @@ def cleanup_temp_folder(temp_dir: str, max_retries: int = 3, delay: float = 1.0)
             else:
                 print(f"Warning: Could not completely clean temp folder due to persistent lock: {e}")
 
+def convert_playwright_cookies(json_path: str, txt_path: str) -> bool:
+    """Converts Playwright JSON cookies format to standard Netscape cookies format."""
+    try:
+        if not os.path.exists(json_path):
+            return False
+        with open(json_path, 'r', encoding='utf-8') as f:
+            cookies = json.load(f)
+        
+        lines = [
+            "# Netscape HTTP Cookie File",
+            "# http://curl.haxx.se/rfc/cookie_spec.html",
+            "# This is a generated file! Do not edit.\n"
+        ]
+        for c in cookies:
+            domain = c.get("domain", "")
+            include_subdomains = "TRUE" if domain.startswith(".") else "FALSE"
+            path = c.get("path", "/")
+            secure = "TRUE" if c.get("secure", False) else "FALSE"
+            expires = int(c.get("expires", 0))
+            name = c.get("name", "")
+            value = c.get("value", "")
+            
+            lines.append(f"{domain}\t{include_subdomains}\t{path}\t{secure}\t{expires}\t{name}\t{value}")
+            
+        os.makedirs(os.path.dirname(txt_path), exist_ok=True)
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(lines) + "\n")
+        print(f"[COOKIES] Successfully converted Playwright cookies from {json_path} to Netscape {txt_path}")
+        return True
+    except Exception as e:
+        print(f"[WARNING] Playwright cookies conversion failed: {e}")
+        return False
+
 def run_ingest_step(url: str, temp_dir: str) -> tuple:
     print(f"Starting ingest for: {url}")
     audio_base = os.path.join(temp_dir, "source_audio")
     
+    # Locate best cookie file path
+    cookie_file = None
+    
+    # 1. Check root cookies files
+    for root_cookie in ["youtube_cookies.txt", "cookies.txt"]:
+        if os.path.exists(root_cookie):
+            cookie_file = root_cookie
+            print(f"[INGEST] Found YouTube cookies file in workspace root: {cookie_file}")
+            break
+            
+    # 2. Check Playwright session cookies
+    if not cookie_file:
+        pw_json = "sessions/youtube/default/cookies.json"
+        pw_txt = "sessions/youtube/default/cookies.txt"
+        if os.path.exists(pw_json):
+            if convert_playwright_cookies(pw_json, pw_txt):
+                cookie_file = pw_txt
+
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': f"{audio_base}.%(ext)s", 
@@ -138,7 +189,17 @@ def run_ingest_step(url: str, temp_dir: str) -> tuple:
         }],
         'quiet': False,
         'js_runtimes': {'node': {}},
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web']
+            }
+        }
     }
+    
+    if cookie_file:
+        ydl_opts['cookiefile'] = cookie_file
+        print(f"[INGEST] Injecting cookies into yt-dlp from: {cookie_file}")
+
     
     metadata = {
         "song_name": None,
