@@ -290,6 +290,7 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
         }],
         'quiet': False,
         'js_runtimes': {'node': {}},
+        'remote_components': ['ejs:github'],
         'extractor_args': {
             'youtube': {
                 'player_client': ['android', 'web']
