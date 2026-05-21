@@ -38,8 +38,6 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_BASE
-        fromService:
-          name: you-tik-backend
-          type: web
-          property: url
+        value: https://you-tik-backend.onrender.com
+
 

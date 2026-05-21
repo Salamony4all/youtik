@@ -4,7 +4,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Terminal, Download, Settings, Layers, Scissors, Cpu, CheckCircle2, AlertCircle, Link as LinkIcon, Sparkles, ChevronRight, ChevronDown, Monitor, Layout, Sun, Moon, Check, Edit3, Save, Plus, Trash2, Pause, Mic, PenTool, Music, Share2, ExternalLink, Loader, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const getApiBase = () => {
+  if (import.meta.env.VITE_API_BASE) {
+    return import.meta.env.VITE_API_BASE;
+  }
+  // Robust dynamic fallback for Render hosting environments
+  const host = window.location.hostname;
+  if (host.includes("onrender.com")) {
+    if (host.includes("-frontend")) {
+      return `https://${host.replace("-frontend", "-backend")}`;
+    }
+    if (host.includes("frontend")) {
+      return `https://${host.replace("frontend", "backend")}`;
+    }
+  }
+  return "http://localhost:8000";
+};
+const API_BASE = getApiBase();
+
 
 const clipSteps = [
   { id: 'INGESTION', title: 'Smart Ingest', icon: LinkIcon, color: 'text-blue-400' },
