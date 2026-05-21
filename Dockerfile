@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     build-essential \
+    nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
