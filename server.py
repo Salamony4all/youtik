@@ -10,6 +10,7 @@ from typing import List, Dict, Optional
 import time
 import subprocess
 import json
+import publisher
 
 # Force UTF-8 console output on Windows so logs with Arabic text do not crash.
 os.environ.setdefault("PYTHONUTF8", "1")
@@ -43,7 +44,55 @@ def cleanup_workspace(full=True):
         else:
             os.makedirs(d, exist_ok=True)
 
-cleanup_workspace(full=True)
+def cleanup_session_temp(session_id: str, add_log_fn=None):
+    """
+    Cleans up high-volume intermediate assets in the session's temporary folder
+    (like WAVs, temporary MP4s, SRTs) while preserving lightweight JSON metadata
+    (like slicing_map.json, semantics.json) to match MoneyPrinterV2's .mp/ cleanup logic.
+    """
+    temp_dir = f"./temp/session_{session_id}"
+    if not os.path.exists(temp_dir):
+        return
+
+    if add_log_fn:
+        add_log_fn("[CLEANUP] Safely archiving session workspace: purging high-volume temp assets...")
+
+    cleaned_count = 0
+    # Try up to 3 times to handle potential Windows file locks
+    for attempt in range(3):
+        locked_files = []
+        try:
+            for root, dirs, files in os.walk(temp_dir, topdown=False):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # Keep lightweight JSON manifests/metadata
+                    if not file.lower().endswith(".json"):
+                        try:
+                            os.remove(file_path)
+                            cleaned_count += 1
+                        except Exception:
+                            locked_files.append(file_path)
+                
+                # Delete empty directories
+                for d in dirs:
+                    dir_path = os.path.join(root, d)
+                    try:
+                        shutil.rmtree(dir_path)
+                    except Exception:
+                        pass
+            
+            if not locked_files:
+                break
+            time.sleep(0.5)
+        except Exception as e:
+            if attempt == 2 and add_log_fn:
+                add_log_fn(f"[WARNING] Temp cleanup encountered error: {e}")
+            time.sleep(0.5)
+
+    if add_log_fn and cleaned_count > 0:
+        add_log_fn(f"[CLEANUP] Purged {cleaned_count} intermediate temp assets. Disk space optimized.")
+
+cleanup_workspace(full=False)
 
 app = FastAPI(title="You-Tik Studio API")
 
@@ -86,6 +135,19 @@ class IngestRequest(BaseModel):
     tts_engine: Optional[str] = None
     tts_voice: Optional[str] = "M1"
     target_duration: int = 30
+
+
+class PublishRequest(BaseModel):
+    video_path: str
+    platform: str  # tiktok | youtube | instagram | twitter
+    caption: str = ""
+    hashtags: Optional[List[str]] = None
+    account: str = "default"
+    save_as_draft: bool = False
+    headless: bool = False
+
+
+
 
 
 # CRITICAL FIX: Removed 'async' so FastAPI runs this in a background thread, preventing UI freezing!
@@ -177,6 +239,7 @@ def run_pipeline(session_id: str, request: IngestRequest):
             sessions[session_id]["data"]["final_clips"] = final_clips
             sessions[session_id]["status"] = "COMPLETED"
             add_log("[SUCCESS] AI Original Production complete. Assets ready in Gallery.")
+            cleanup_session_temp(session_id, add_log)
             return
 
         # ----------------------------------------
@@ -279,6 +342,7 @@ def run_pipeline_phase_2(session_id: str, human_semantics: List[Dict]):
         sessions[session_id]["data"]["final_clips"] = final_clips
         sessions[session_id]["status"] = "COMPLETED"
         add_log("[SUCCESS] Production complete. Assets ready in Gallery.")
+        cleanup_session_temp(session_id, add_log)
 
     except Exception as e:
         sessions[session_id]["status"] = "ERROR"
@@ -287,6 +351,11 @@ def run_pipeline_phase_2(session_id: str, human_semantics: List[Dict]):
 
 @app.post("/process")
 async def initialize_pipeline(request: IngestRequest, background_tasks: BackgroundTasks):
+    # Auto-clean workspace and reset stale sessions to prevent disk bloat
+    global sessions
+    sessions = {}
+    cleanup_workspace(full=True)
+
     session_id = str(uuid.uuid4())[:8]
     sessions[session_id] = {
         "session_id": session_id,
@@ -395,6 +464,109 @@ async def get_config():
             {"id": "M5", "name": "Male 5", "desc": "Male voice M5"}
         ]
     }
+
+# ---------------------------------------------------------------------------
+# Social-Media Publish Endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/publish")
+async def start_publish(req: PublishRequest):
+    """Start a background publish job for a clip."""
+    # Resolve the actual file path on disk from the web path
+    file_path = req.video_path
+    if file_path.startswith("/output/"):
+        file_path = "." + file_path  # ./output/session_xxx/clip.mp4
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail=f"Video file not found: {file_path}")
+    if req.platform not in publisher.PLATFORMS:
+        raise HTTPException(status_code=400, detail=f"Unknown platform: {req.platform}")
+
+    job_id = publisher.start_publish_job(
+        video_path=os.path.abspath(file_path),
+        platform=req.platform,
+        caption=req.caption,
+        hashtags=req.hashtags,
+        account=req.account,
+        save_as_draft=req.save_as_draft,
+        headless=req.headless,
+    )
+    return {"job_id": job_id, "status": "QUEUED"}
+
+
+@app.get("/publish/status/{job_id}")
+async def publish_status(job_id: str):
+    """Poll the status of a publish job."""
+    job = publisher.publish_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Publish job not found")
+    return {
+        "job_id": job["job_id"],
+        "platform": job["platform"],
+        "status": job["status"],
+        "detail": job["detail"],
+    }
+
+
+@app.get("/publish/accounts")
+async def list_publish_accounts():
+    """List platforms that have saved authentication sessions."""
+    return {"accounts": publisher.get_authenticated_accounts()}
+
+
+@app.post("/auth/google")
+async def auth_google():
+    """Start a real browser-based Google login using Playwright persistent context."""
+    job_id = publisher.start_google_login_job()
+    return {"job_id": job_id, "status": "STARTING"}
+
+
+@app.get("/auth/google/status/{job_id}")
+async def auth_google_status(job_id: str):
+    """Poll the status of a browser-based Google login job."""
+    job = publisher.login_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Login job not found")
+    return {
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "detail": job.get("detail", ""),
+        "user": job.get("user"),
+    }
+
+
+@app.get("/auth/google/user")
+async def get_google_user():
+    """Get currently logged-in Google Master Account, if any."""
+    master_profile_path = publisher.SESSIONS_DIR / "google_master.json"
+    if master_profile_path.is_file() and publisher._has_google_profile():
+        try:
+            return json.loads(master_profile_path.read_text())
+        except Exception:
+            return None
+    return None
+
+
+@app.post("/auth/google/logout")
+async def logout_google():
+    """Log out of Google Master Account and clean persistent browser profile."""
+    master_profile_path = publisher.SESSIONS_DIR / "google_master.json"
+    if master_profile_path.exists():
+        master_profile_path.unlink()
+
+    # Clean the persistent browser profile (this is the real session data)
+    if publisher.GOOGLE_PROFILE_DIR.exists():
+        shutil.rmtree(publisher.GOOGLE_PROFILE_DIR, ignore_errors=True)
+
+    # Clean sessions for all platforms
+    if publisher.SESSIONS_DIR.exists():
+        for item in publisher.SESSIONS_DIR.iterdir():
+            if item.is_dir() and item.name in ["youtube", "tiktok", "instagram", "twitter"]:
+                shutil.rmtree(item, ignore_errors=True)
+
+    # Recreate session directories
+    publisher._ensure_session_dirs()
+    return {"status": "success", "message": "Logged out successfully. Browser session and platform data cleared."}
+
 
 if __name__ == "__main__":
     import uvicorn

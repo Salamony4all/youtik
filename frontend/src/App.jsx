@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Terminal, Download, Settings, Layers, Scissors, Cpu, CheckCircle2, AlertCircle, Link as LinkIcon, Sparkles, ChevronRight, ChevronDown, Monitor, Layout, Sun, Moon, Check, Edit3, Save, Plus, Trash2, Pause, Mic, PenTool, Music } from 'lucide-react';
+import { Play, Terminal, Download, Settings, Layers, Scissors, Cpu, CheckCircle2, AlertCircle, Link as LinkIcon, Sparkles, ChevronRight, ChevronDown, Monitor, Layout, Sun, Moon, Check, Edit3, Save, Plus, Trash2, Pause, Mic, PenTool, Music, Share2, ExternalLink, Loader, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 const clipSteps = [
   { id: 'INGESTION', title: 'Smart Ingest', icon: LinkIcon, color: 'text-blue-400' },
@@ -40,6 +41,360 @@ const statusProgressMap = {
 };
 
 const MUSIC_GENRES = ["Pop", "Hip-Hop", "Cinematic", "Egyptian Folk", "Electronic", "Lo-Fi", "Rock", "Jazz", "Synthwave", "Trap", "Classical", "Ambient", "Orchestral", "EDM", "Acoustic", "Metal", "R&B", "Reggae", "Country", "Techno", "House", "Phonk"];
+
+const PUBLISH_PLATFORMS = [
+  { id: 'tiktok',    icon: '🎵', name: 'TikTok',          color: '#FE2C55' },
+  { id: 'youtube',   icon: '▶️',  name: 'YouTube Shorts',  color: '#FF0000' },
+  { id: 'instagram', icon: '📸', name: 'Instagram Reels', color: '#E1306C' },
+  { id: 'twitter',   icon: '🐦', name: 'X / Twitter',     color: '#1DA1F2' },
+];
+
+const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, setGoogleUser }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const buttonRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [loginDetail, setLoginDetail] = useState('');
+  const [saveAsDraft, setSaveAsDraft] = useState(true);
+  const [showBrowser, setShowBrowser] = useState(true);
+
+  // Calculate position from the button's bounding rect
+  const updatePosition = () => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const dropdownWidth = 300;
+    // Position above the button, aligned to the right edge
+    let left = rect.right - dropdownWidth;
+    // Prevent going off-screen left
+    if (left < 8) left = 8;
+    // Prevent going off-screen right
+    if (left + dropdownWidth > window.innerWidth - 8) left = window.innerWidth - dropdownWidth - 8;
+    setDropdownPos({
+      top: rect.top - 12, // 12px gap above button
+      left,
+    });
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target) &&
+        buttonRef.current && !buttonRef.current.contains(e.target)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const handleGoogleSignIn = async () => {
+    setIsSigningIn(true);
+    setLoginDetail('Opening browser…');
+    try {
+      const res = await axios.post(`${API_BASE}/auth/google`);
+      const jobId = res.data.job_id;
+
+      const poll = setInterval(async () => {
+        try {
+          const statusRes = await axios.get(`${API_BASE}/auth/google/status/${jobId}`);
+          const { status, detail, user } = statusRes.data;
+          setLoginDetail(detail || status);
+
+          if (status === 'AUTHENTICATED') {
+            clearInterval(poll);
+            const userRes = await axios.get(`${API_BASE}/auth/google/user`);
+            if (userRes.data) {
+              setGoogleUser(userRes.data);
+            }
+            setIsSigningIn(false);
+            setLoginDetail('');
+          } else if (status === 'ERROR' || status === 'TIMEOUT') {
+            clearInterval(poll);
+            setIsSigningIn(false);
+            setTimeout(() => setLoginDetail(''), 8000);
+          }
+        } catch {
+          clearInterval(poll);
+          setIsSigningIn(false);
+          setLoginDetail('');
+        }
+      }, 2000);
+    } catch (err) {
+      console.error("Google auth failed", err);
+      setIsSigningIn(false);
+      setLoginDetail('Failed to start login');
+      setTimeout(() => setLoginDetail(''), 5000);
+    }
+  };
+
+  const handleGoogleSignOut = async () => {
+    try {
+      await axios.post(`${API_BASE}/auth/google/logout`);
+      setGoogleUser(null);
+    } catch (err) {
+      console.error("Google Master SignOut failed", err);
+    }
+  };
+
+  const handlePublish = async (platform) => {
+    const key = `${clip.filename}_${platform.id}`;
+    setPublishStatus(prev => ({ ...prev, [key]: { status: 'LAUNCHING', detail: 'Starting…' } }));
+
+    try {
+      const res = await axios.post(`${API_BASE}/publish`, {
+        video_path: clip.url,
+        platform: platform.id,
+        caption: clip.filename.replace('.mp4', '').replace(/_/g, ' '),
+        save_as_draft: saveAsDraft,
+        headless: !showBrowser,
+      });
+
+      const jobId = res.data.job_id;
+      setPublishStatus(prev => ({ ...prev, [key]: { status: 'LAUNCHING', detail: 'Browser launching…', jobId } }));
+
+      const poll = setInterval(async () => {
+        try {
+          const statusRes = await axios.get(`${API_BASE}/publish/status/${jobId}`);
+          const { status: st, detail } = statusRes.data;
+          setPublishStatus(prev => ({ ...prev, [key]: { status: st, detail, jobId } }));
+          if (st === 'PUBLISHED' || st === 'ERROR') clearInterval(poll);
+        } catch { clearInterval(poll); }
+      }, 2000);
+    } catch (err) {
+      setPublishStatus(prev => ({ ...prev, [key]: { status: 'ERROR', detail: err.message } }));
+    }
+  };
+
+  const getStatusForPlatform = (platformId) => {
+    return publishStatus[`${clip.filename}_${platformId}`];
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-2xl flex items-center justify-center shadow-xl hover:scale-110 transition-all duration-300 active:scale-95"
+        title="Publish to social media"
+      >
+        <Share2 size={20} />
+      </button>
+
+      {ReactDOM.createPortal(
+        <>
+          <AnimatePresence>
+            {isOpen && (
+            <motion.div
+              ref={dropdownRef}
+              initial={{ opacity: 0, y: 10, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+              style={{
+                position: 'fixed',
+                top: dropdownPos.top,
+                left: dropdownPos.left,
+                width: 300,
+                transform: 'translateY(-100%)',
+              }}
+              className="bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/15 rounded-2xl shadow-[0_25px_80px_rgba(0,0,0,0.35)] z-[9999] overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-white/10 bg-gradient-to-r from-purple-500/5 to-pink-500/5 dark:from-purple-500/10 dark:to-pink-500/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                    <Share2 size={12} className="text-white" />
+                  </div>
+                  <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-700 dark:text-slate-200">Publish & Share</span>
+                </div>
+              </div>
+
+              {/* Google Master Auth Card */}
+              <div className="p-3 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01]">
+                {googleUser ? (
+                  <div className="flex items-center gap-3 p-3 bg-white dark:bg-[#252528] rounded-xl border border-slate-100 dark:border-white/5 shadow-sm">
+                    <img 
+                      src={googleUser.picture} 
+                      alt={googleUser.name} 
+                      className="w-9 h-9 rounded-full border border-purple-500/20"
+                      onError={(e) => { e.target.src = "https://lh3.googleusercontent.com/a/default-user=s96-c"; }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-1.5">
+                        {googleUser.name}
+                        <span className="text-[9px] bg-green-500/10 dark:bg-green-500/20 text-green-600 dark:text-green-400 font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider">Master Unlocked</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{googleUser.email}</div>
+                    </div>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleGoogleSignOut(); }}
+                      className="text-[10px] font-black text-red-500 hover:bg-red-500/10 px-2.5 py-1.5 rounded-lg transition-colors active:scale-95"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleGoogleSignIn(); }}
+                      disabled={isSigningIn}
+                      className="w-full flex items-center justify-center gap-3 bg-white dark:bg-[#252528] hover:bg-slate-50 dark:hover:bg-[#2d2d31] border border-slate-200 dark:border-white/10 p-3 rounded-xl shadow-sm transition-all duration-200 active:scale-[0.98]"
+                    >
+                      {isSigningIn ? (
+                        <Loader size={16} className="text-purple-500 animate-spin shrink-0" />
+                      ) : (
+                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                        </svg>
+                      )}
+                      <span className="text-xs font-black text-slate-700 dark:text-slate-200">
+                        {isSigningIn ? (loginDetail || 'Opening browser…') : 'Sign in with Google'}
+                      </span>
+                    </button>
+                    {loginDetail && !isSigningIn && (
+                      <p className="text-[10px] text-center font-semibold text-red-500 dark:text-red-400 mt-1.5 animate-pulse">{loginDetail}</p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Advanced Settings / Toggles */}
+              <div className="px-4 py-3.5 border-b border-slate-100 dark:border-white/5 space-y-3 bg-slate-50/20 dark:bg-white/[0.01]">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Save as Draft</span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Do not publish instantly</span>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSaveAsDraft(!saveAsDraft); }}
+                    className={`w-9 h-5.5 flex items-center rounded-full p-0.5 transition-all duration-300 ${
+                      saveAsDraft ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'bg-slate-200 dark:bg-zinc-700'
+                    }`}
+                  >
+                    <div
+                      className={`bg-white w-4.5 h-4.5 rounded-full shadow-sm transform transition-all duration-300 ${
+                        saveAsDraft ? 'translate-x-3.5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Show Browser Window</span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Watch automated upload live</span>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowBrowser(!showBrowser); }}
+                    className={`w-9 h-5.5 flex items-center rounded-full p-0.5 transition-all duration-300 ${
+                      showBrowser ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'bg-slate-200 dark:bg-zinc-700'
+                    }`}
+                  >
+                    <div
+                      className={`bg-white w-4.5 h-4.5 rounded-full shadow-sm transform transition-all duration-300 ${
+                        showBrowser ? 'translate-x-3.5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Platform list */}
+              <div className="p-2 space-y-1">
+                {PUBLISH_PLATFORMS.map(platform => {
+                  const pStatus = getStatusForPlatform(platform.id);
+                  const isPublished = pStatus?.status === 'PUBLISHED';
+                  const isLoading = pStatus && !isPublished && pStatus.status !== 'ERROR';
+                  const isError = pStatus?.status === 'ERROR';
+
+                  return (
+                    <button
+                      key={platform.id}
+                      onClick={(e) => { e.stopPropagation(); if (!isLoading && !isPublished) handlePublish(platform); }}
+                      disabled={isLoading || isPublished}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group/pub ${
+                        isPublished
+                          ? 'bg-green-50 dark:bg-green-500/10 cursor-default'
+                          : isLoading
+                          ? 'bg-slate-50 dark:bg-white/5 cursor-wait'
+                          : isError
+                          ? 'bg-red-50 dark:bg-red-500/5 hover:bg-red-100 dark:hover:bg-red-500/10 cursor-pointer'
+                          : 'hover:bg-slate-100 dark:hover:bg-white/8 cursor-pointer active:scale-[0.98]'
+                      }`}
+                    >
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg" style={{ backgroundColor: platform.color + '15' }}>
+                        {platform.icon}
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="text-[13px] font-bold text-slate-800 dark:text-white">
+                          {platform.name}
+                        </div>
+                        {pStatus ? (
+                          <div className={`text-[10px] font-semibold truncate ${
+                            isPublished ? 'text-green-600 dark:text-green-400'
+                            : isError ? 'text-red-500 dark:text-red-400'
+                            : 'text-purple-500 dark:text-purple-400'
+                          }`}>
+                            {pStatus.detail || pStatus.status}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                            {googleUser ? "Master session linked" : "Ready to publish"}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0">
+                        {isPublished ? (
+                          <CheckCircle2 size={18} className="text-green-500" />
+                        ) : isLoading ? (
+                          <Loader size={18} className="text-purple-500 animate-spin" />
+                        ) : isError ? (
+                          <AlertCircle size={18} className="text-red-500" />
+                        ) : (
+                          <ChevronRight size={16} className="text-slate-300 dark:text-slate-600 group-hover/pub:text-purple-500 group-hover/pub:translate-x-0.5 transition-all" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-2.5 border-t border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02]">
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium text-center leading-relaxed">
+                  {googleUser 
+                    ? "Signed in with Google Master Account • Unlocked"
+                    : "First use opens browser for login • Saved locally"
+                  }
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+
+      </>,
+      document.body
+    )}
+    </>
+  );
+};
 
 const RangeSlider = ({ start, end, max, onChange, onSeek }) => {
   const startPerc = (start / max) * 100;
@@ -476,29 +831,142 @@ const ReviewPortal = ({ sessionId, onCommit, isDark }) => {
 };
 
 function App() {
-  const [mode, setMode] = useState('clip');
-  const [url, setUrl] = useState('');
-  const [promptText, setPromptText] = useState('');
-  const [selectedGenres, setSelectedGenres] = useState([]);
-  const [songName, setSongName] = useState('');
-  const [artistName, setArtistName] = useState('');
-  const [targetDuration, setTargetDuration] = useState(30);
-  const [sessionId, setSessionId] = useState(null);
-  const [status, setStatus] = useState('IDLE');
-  const [progress, setProgress] = useState(0);
-  const [logs, setLogs] = useState([]);
-  const [results, setResults] = useState([]);
+  const [mode, setMode] = useState(localStorage.getItem('utik_mode') || 'clip');
+  const [url, setUrl] = useState(localStorage.getItem('utik_url') || '');
+  const [promptText, setPromptText] = useState(localStorage.getItem('utik_prompt_text') || '');
+  const [selectedGenres, setSelectedGenres] = useState(JSON.parse(localStorage.getItem('utik_genres') || '[]'));
+  const [songName, setSongName] = useState(localStorage.getItem('utik_song_name') || '');
+  const [artistName, setArtistName] = useState(localStorage.getItem('utik_artist_name') || '');
+  const [targetDuration, setTargetDuration] = useState(Number(localStorage.getItem('utik_target_duration')) || 30);
+  const [sessionId, setSessionId] = useState(localStorage.getItem('utik_session_id') || null);
+  const [status, setStatus] = useState(localStorage.getItem('utik_status') || 'IDLE');
+  const [progress, setProgress] = useState(Number(localStorage.getItem('utik_progress')) || 0);
+  const [logs, setLogs] = useState(JSON.parse(localStorage.getItem('utik_logs') || '[]'));
+  const [results, setResults] = useState(JSON.parse(localStorage.getItem('utik_results') || '[]'));
   const [processResponse, setProcessResponse] = useState(null);
   const [lastPoll, setLastPoll] = useState(null);
-  const [activeTab, setActiveTab] = useState('studio');
-  const [isDark, setIsDark] = useState(false);
+  const [activeTab, setActiveTab] = useState(localStorage.getItem('utik_active_tab') || 'studio');
+  const [isDark, setIsDark] = useState(localStorage.getItem('utik_dark') === 'true');
   const [showSettings, setShowSettings] = useState(false);
   const [selectedModel, setSelectedModel] = useState(localStorage.getItem('utik_whisper_model') || 'x-large-v3-turbo');
   const [selectedStyle, setSelectedStyle] = useState(localStorage.getItem('utik_style') || 'TikTok');
   const [selectedGoogleModel, setSelectedGoogleModel] = useState(localStorage.getItem('utik_google_model') || 'models/gemma-4-31b-it');
   const [selectedTTSEngine, setSelectedTTSEngine] = useState(localStorage.getItem('utik_tts_engine') || 'supertonic');
   const [selectedTTSVoice, setSelectedTTSVoice] = useState(localStorage.getItem('utik_tts_voice') || 'M1');
-  const [manualReview, setManualReview] = useState(false);
+  const [manualReview, setManualReview] = useState(localStorage.getItem('utik_manual_review') === 'true');
+
+  // Google Master Auth State
+  const [googleUser, setGoogleUser] = useState(null);
+
+  // Sync state values to localStorage
+  useEffect(() => {
+    localStorage.setItem('utik_mode', mode);
+  }, [mode]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_url', url);
+  }, [url]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_prompt_text', promptText);
+  }, [promptText]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_genres', JSON.stringify(selectedGenres));
+  }, [selectedGenres]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_song_name', songName);
+  }, [songName]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_artist_name', artistName);
+  }, [artistName]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_target_duration', targetDuration);
+  }, [targetDuration]);
+
+  useEffect(() => {
+    if (sessionId) localStorage.setItem('utik_session_id', sessionId);
+    else localStorage.removeItem('utik_session_id');
+  }, [sessionId]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_status', status);
+  }, [status]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_progress', progress);
+  }, [progress]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_logs', JSON.stringify(logs));
+  }, [logs]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_results', JSON.stringify(results));
+  }, [results]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_active_tab', activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_dark', isDark);
+  }, [isDark]);
+
+  useEffect(() => {
+    localStorage.setItem('utik_manual_review', manualReview);
+  }, [manualReview]);
+
+  // Fetch Google Master user on mount
+  useEffect(() => {
+    const fetchGoogleUser = async () => {
+      try {
+        const res = await axios.get(`${API_BASE}/auth/google/user`);
+        if (res.data) setGoogleUser(res.data);
+      } catch (err) {
+        console.warn("Could not fetch Google user", err);
+      }
+    };
+    fetchGoogleUser();
+  }, []);
+
+  const handleResetSession = async () => {
+    try {
+      await axios.post(`${API_BASE}/api/reset`);
+      // Clear localStorage
+      localStorage.removeItem('utik_session_id');
+      localStorage.removeItem('utik_status');
+      localStorage.removeItem('utik_progress');
+      localStorage.removeItem('utik_results');
+      localStorage.removeItem('utik_logs');
+      localStorage.removeItem('utik_url');
+      localStorage.removeItem('utik_prompt_text');
+      localStorage.removeItem('utik_genres');
+      localStorage.removeItem('utik_song_name');
+      localStorage.removeItem('utik_artist_name');
+      localStorage.removeItem('utik_target_duration');
+      
+      // Reset state
+      setSessionId(null);
+      setStatus('IDLE');
+      setProgress(0);
+      setResults([]);
+      setLogs([]);
+      setProcessResponse(null);
+      setActiveTab('studio');
+      setPromptText('');
+      setUrl('');
+      setSelectedGenres([]);
+      setSongName('');
+      setArtistName('');
+      setTargetDuration(30);
+    } catch (err) {
+      console.error("Failed to reset session", err);
+    }
+  };
 
   const steps = mode === 'create' ? createSteps : (manualReview ? clipSteps : clipSteps.filter(s => s.id !== 'WAITING_FOR_REVIEW'));
   const [availableModels, setAvailableModels] = useState([]);
@@ -566,7 +1034,21 @@ function App() {
           isPolling = false;
         }
       } catch (err) {
-        console.error("Polling failed", err);
+        if (err.response && err.response.status === 404) {
+          isPolling = false;
+          setSessionId(null);
+          localStorage.removeItem('utik_session_id');
+          localStorage.removeItem('utik_status');
+          localStorage.removeItem('utik_progress');
+          localStorage.removeItem('utik_results');
+          localStorage.removeItem('utik_logs');
+          setStatus('IDLE');
+          setProgress(0);
+          setResults([]);
+          setLogs([]);
+        } else {
+          console.error("Polling failed", err);
+        }
       }
     };
 
@@ -646,6 +1128,7 @@ function App() {
   };
 
   const [selectedVideo, setSelectedVideo] = useState(null);
+  const [publishStatus, setPublishStatus] = useState({});
   const currentStepIndex = steps.findIndex(s => s.id === status);
 
   return (
@@ -691,6 +1174,13 @@ function App() {
             </div>
           </div>
           <div className="h-8 w-px bg-slate-200 dark:bg-white/10 mx-2" />
+          <button 
+            onClick={handleResetSession} 
+            className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:scale-105 rounded-full transition-all duration-300 active:scale-90 flex items-center justify-center border border-red-500/20 dark:border-red-500/30"
+            title="Reset Session"
+          >
+            <RotateCcw size={20} />
+          </button>
           <button onClick={() => setIsDark(!isDark)} className="p-2.5 bg-slate-200 dark:bg-white/5 hover:bg-slate-300 dark:hover:bg-white/10 rounded-full text-slate-600 dark:text-slate-400 transition-all active:scale-90">
             {isDark ? <Sun size={20} /> : <Moon size={20} />}
           </button>
@@ -1016,7 +1506,10 @@ function App() {
                           <div className="space-y-1">
                             <div className="text-lg font-black tracking-tight truncate max-w-[140px] uppercase text-slate-900 dark:text-white">{clip.filename.split('_').pop()}</div>
                           </div>
-                          <a href={`${API_BASE}${clip.url}`} download className="w-12 h-12 bg-white text-black rounded-2xl flex items-center justify-center shadow-xl hover:bg-yt-red hover:text-white transition-all transform group-hover:translate-y-0 translate-y-2 opacity-0 group-hover:opacity-100"><Download size={22} /></a>
+                          <div className="flex items-center gap-2 transform group-hover:translate-y-0 translate-y-2 opacity-0 group-hover:opacity-100 transition-all">
+                            <PublishDropdown clip={clip} publishStatus={publishStatus} setPublishStatus={setPublishStatus} googleUser={googleUser} setGoogleUser={setGoogleUser} />
+                            <a href={`${API_BASE}${clip.url}`} download className="w-12 h-12 bg-white text-black rounded-2xl flex items-center justify-center shadow-xl hover:bg-yt-red hover:text-white transition-all"><Download size={22} /></a>
+                          </div>
                         </div>
                       </div>
                     </motion.div>

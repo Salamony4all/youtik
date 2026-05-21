@@ -1,0 +1,40 @@
+services:
+  # -------------------------------------------------------------------------
+  # FastAPI Python Backend Container Service
+  # -------------------------------------------------------------------------
+  - type: web
+    name: you-tik-backend
+    env: docker
+    dockerfilePath: Dockerfile
+    region: oregon # Render's Oregon region
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: GOOGLE_API_KEY
+        sync: false # Render will prompt the user to input their secure API key during deploy
+        description: "Google Gemini/Generative AI API Key"
+      - key: PEXELS_API_KEY
+        sync: false
+        description: "Pexels API Key for semantic video generation assets"
+      - key: TIKTOK_USERNAME
+        sync: false
+        description: "TikTok publishing account username/email"
+      - key: TIKTOK_PASSWORD
+        sync: false
+        description: "TikTok publishing account password"
+    healthCheckPath: /config
+
+  # -------------------------------------------------------------------------
+  # Vite/React Frontend Static Site Service
+  # -------------------------------------------------------------------------
+  - type: web
+    name: you-tik-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    publishPath: frontend/dist
+    envVars:
+      - key: VITE_API_BASE
+        fromService:
+          name: you-tik-backend
+          type: web
+          property: url

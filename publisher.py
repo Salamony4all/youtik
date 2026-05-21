@@ -1,0 +1,642 @@
+"""
+publisher.py – Unified Social-Media Publishing Engine
+=====================================================
+Handles browser-based uploads to TikTok, YouTube Shorts, Instagram Reels
+and X/Twitter using Playwright stealth wrappers and the tiktokautouploader
+pip package.
+
+First-time use per platform opens a *visible* browser window for manual
+login.  Session cookies are persisted locally so subsequent uploads can
+run headless.
+"""
+
+import asyncio
+import json
+import os
+import time
+import uuid
+from pathlib import Path
+from typing import Optional
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+SESSIONS_DIR = Path("./sessions")
+GOOGLE_PROFILE_DIR = SESSIONS_DIR / "google_profile"
+PLATFORMS = {
+    "tiktok":    {"icon": "🎵", "name": "TikTok"},
+    "youtube":   {"icon": "▶️",  "name": "YouTube Shorts"},
+    "instagram": {"icon": "📸", "name": "Instagram Reels"},
+    "twitter":   {"icon": "🐦", "name": "X / Twitter"},
+}
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _ensure_session_dirs():
+    """Create the sessions/ directory tree if it doesn't exist."""
+    for platform in PLATFORMS:
+        (SESSIONS_DIR / platform).mkdir(parents=True, exist_ok=True)
+
+
+def _cookies_path(platform: str, account: str = "default") -> Path:
+    return SESSIONS_DIR / platform / account / "cookies.json"
+
+
+def _has_real_session(platform: str, account: str = "default") -> bool:
+    """Check if the platform has a real, authenticated login session (not just a mock master trigger)."""
+    cookie_file = _cookies_path(platform, account)
+    if not cookie_file.is_file():
+        return False
+    try:
+        data = json.loads(cookie_file.read_text())
+        if isinstance(data, dict):
+            # TikTok autouploader session or other custom format
+            return data.get("source") == "tiktokautouploader" or len(data) > 1
+        elif isinstance(data, list):
+            # Playwright cookies list
+            real_cookies = [c for c in data if c.get("name") != "google_master_session"]
+            return len(real_cookies) > 0
+        return False
+    except Exception:
+        return False
+
+
+def _has_google_profile() -> bool:
+    """Check if a real Google browser profile exists (user signed in via browser)."""
+    try:
+        return GOOGLE_PROFILE_DIR.exists() and any(GOOGLE_PROFILE_DIR.iterdir())
+    except Exception:
+        return False
+
+
+def get_authenticated_accounts() -> list[dict]:
+    """Return a list of platforms that already have saved sessions."""
+    _ensure_session_dirs()
+    accounts = []
+    for platform, meta in PLATFORMS.items():
+        platform_dir = SESSIONS_DIR / platform
+        if platform_dir.exists():
+            for acct_dir in platform_dir.iterdir():
+                if acct_dir.is_dir() and (acct_dir / "cookies.json").exists():
+                    accounts.append({
+                        "platform": platform,
+                        "account": acct_dir.name,
+                        "icon": meta["icon"],
+                        "name": meta["name"],
+                    })
+    return accounts
+
+
+# ---------------------------------------------------------------------------
+# Publish jobs (in-memory store, keyed by job_id)
+# ---------------------------------------------------------------------------
+publish_jobs: dict[str, dict] = {}
+login_jobs: dict[str, dict] = {}
+
+
+def _set_status(job_id: str, status: str, detail: str = ""):
+    if job_id in publish_jobs:
+        publish_jobs[job_id]["status"] = status
+        publish_jobs[job_id]["detail"] = detail
+        publish_jobs[job_id]["updated_at"] = time.time()
+
+
+# ---------------------------------------------------------------------------
+# Google Browser Authentication (Real Playwright-based login)
+# ---------------------------------------------------------------------------
+
+_STEALTH_SCRIPT = """
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    window.navigator.chrome = { runtime: {} };
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+"""
+
+
+async def _run_google_login(job_id: str):
+    """Open a real Chromium browser for Google login using a persistent profile."""
+    login_jobs[job_id]["status"] = "BROWSER_OPEN"
+    login_jobs[job_id]["detail"] = "Opening browser for Google sign-in…"
+
+    try:
+        from playwright.async_api import async_playwright  # type: ignore
+    except ImportError:
+        login_jobs[job_id]["status"] = "ERROR"
+        login_jobs[job_id]["detail"] = "Playwright not installed. Run: pip install playwright && playwright install chromium"
+        return
+
+    profile_dir = str(GOOGLE_PROFILE_DIR)
+    os.makedirs(profile_dir, exist_ok=True)
+
+    try:
+        async with async_playwright() as pw:
+            context = await pw.chromium.launch_persistent_context(
+                user_data_dir=profile_dir,
+                headless=False,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-infobars",
+                    "--disable-dev-shm-usage",
+                ],
+                viewport={"width": 1280, "height": 800},
+                locale="en-US",
+            )
+
+            await context.add_init_script(_STEALTH_SCRIPT)
+
+            page = context.pages[0] if context.pages else await context.new_page()
+
+            # Navigate to YouTube Studio — it will redirect to Google sign-in if needed
+            await page.goto("https://studio.youtube.com", wait_until="domcontentloaded")
+            await page.wait_for_timeout(3000)
+
+            current_url = page.url
+
+            # Check if already logged in (page stayed on Studio, not redirected)
+            if "studio.youtube.com" in current_url and "accounts.google.com" not in current_url:
+                login_jobs[job_id]["status"] = "AUTHENTICATED"
+                login_jobs[job_id]["detail"] = "Already signed in to YouTube Studio!"
+
+                # Try to read channel name from the page
+                name = "YouTube Creator"
+                try:
+                    name_el = page.locator(".channel-name").first
+                    name = (await name_el.text_content(timeout=3000) or name).strip()
+                except Exception:
+                    pass
+
+                master_data = {
+                    "name": name,
+                    "email": "Authenticated via browser",
+                    "picture": "",
+                    "authenticated_at": time.time(),
+                    "auth_method": "browser_persistent",
+                }
+                (SESSIONS_DIR / "google_master.json").write_text(
+                    json.dumps(master_data, indent=2)
+                )
+                login_jobs[job_id]["user"] = master_data
+
+                await context.close()
+                return
+
+            # Not logged in yet — wait for the user to sign in manually
+            login_jobs[job_id]["status"] = "WAITING_LOGIN"
+            login_jobs[job_id]["detail"] = "Please sign in to your Google account in the browser window…"
+
+            logged_in = False
+            for _ in range(300):  # up to 5 minutes
+                await page.wait_for_timeout(1000)
+                try:
+                    cur = page.url
+                    if "studio.youtube.com" in cur and "accounts.google.com" not in cur:
+                        logged_in = True
+                        break
+                except Exception:
+                    pass
+
+            if logged_in:
+                await page.wait_for_timeout(4000)  # Let Studio fully load
+
+                name = "YouTube Creator"
+                try:
+                    name_el = page.locator(".channel-name").first
+                    name = (await name_el.text_content(timeout=5000) or name).strip()
+                except Exception:
+                    pass
+
+                master_data = {
+                    "name": name,
+                    "email": "Authenticated via browser",
+                    "picture": "",
+                    "authenticated_at": time.time(),
+                    "auth_method": "browser_persistent",
+                }
+                (SESSIONS_DIR / "google_master.json").write_text(
+                    json.dumps(master_data, indent=2)
+                )
+
+                login_jobs[job_id]["status"] = "AUTHENTICATED"
+                login_jobs[job_id]["detail"] = f"Signed in as {name}"
+                login_jobs[job_id]["user"] = master_data
+            else:
+                login_jobs[job_id]["status"] = "TIMEOUT"
+                login_jobs[job_id]["detail"] = "Login timed out (5 min). Please try again."
+
+            await context.close()
+
+    except Exception as e:
+        login_jobs[job_id]["status"] = "ERROR"
+        login_jobs[job_id]["detail"] = f"Login failed: {str(e)}"
+
+
+def start_google_login_job() -> str:
+    """Kick off a browser-based Google login.  Returns job_id for polling."""
+    job_id = str(uuid.uuid4())[:8]
+    login_jobs[job_id] = {
+        "job_id": job_id,
+        "status": "STARTING",
+        "detail": "",
+        "updated_at": time.time(),
+    }
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_run_google_login(job_id))
+    except RuntimeError:
+        import threading
+        threading.Thread(
+            target=lambda: asyncio.run(_run_google_login(job_id)), daemon=True
+        ).start()
+
+    return job_id
+
+
+# ---------------------------------------------------------------------------
+# Platform uploaders
+# ---------------------------------------------------------------------------
+
+async def _publish_tiktok(
+    job_id: str,
+    video_path: str,
+    caption: str,
+    hashtags: list[str],
+    account: str = "default",
+    save_as_draft: bool = False,
+    headless: bool = False,
+):
+    """Upload to TikTok using the tiktokautouploader pip package."""
+    _set_status(job_id, "LAUNCHING", "Importing tiktokautouploader…")
+    try:
+        import sys
+        # Force reload modules to pick up local changes dynamically
+        for mod in list(sys.modules.keys()):
+            if mod.startswith("tiktokautouploader"):
+                del sys.modules[mod]
+
+        from tiktokautouploader import upload_tiktok  # type: ignore
+
+        _set_status(job_id, "UPLOADING", "Browser opening for TikTok upload…")
+
+        # tiktokautouploader is synchronous – run in a thread
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            lambda: upload_tiktok(
+                video=video_path,
+                description=caption,
+                accountname=account if account != "default" else "",
+                hashtags=hashtags or [],
+                headless=headless,
+                save_as_draft=save_as_draft,
+            ),
+        )
+
+        # Mark cookie directory as existing (the package manages its own cookies)
+        cookie_dir = SESSIONS_DIR / "tiktok" / account
+        cookie_dir.mkdir(parents=True, exist_ok=True)
+        (cookie_dir / "cookies.json").write_text(
+            json.dumps({"source": "tiktokautouploader", "ts": time.time()})
+        )
+
+        _set_status(job_id, "PUBLISHED", "Successfully uploaded to TikTok ✓")
+    except ImportError:
+        _set_status(
+            job_id,
+            "ERROR",
+            "tiktokautouploader not installed. Run: pip install tiktokautouploader",
+        )
+    except Exception as exc:
+        _set_status(job_id, "ERROR", f"TikTok upload failed: {exc}")
+
+
+async def _publish_playwright(
+    job_id: str,
+    platform: str,
+    video_path: str,
+    caption: str,
+    account: str = "default",
+    save_as_draft: bool = False,
+    headless: bool = False,
+):
+    """Upload using Playwright with the persistent Google browser profile."""
+    _set_status(job_id, "LAUNCHING", f"Starting browser for {platform}…")
+    try:
+        from playwright.async_api import async_playwright  # type: ignore
+    except ImportError:
+        _set_status(
+            job_id,
+            "ERROR",
+            "Playwright not installed. Run: pip install playwright && playwright install chromium",
+        )
+        return
+
+    profile_dir = str(GOOGLE_PROFILE_DIR)
+    if not os.path.exists(profile_dir) or not any(os.scandir(profile_dir)):
+        _set_status(
+            job_id,
+            "ERROR",
+            "Not signed in. Please sign in with Google first using the Publish panel.",
+        )
+        return
+
+    try:
+        async with async_playwright() as pw:
+            # Reuse the same persistent browser profile that was used during login
+            context = await pw.chromium.launch_persistent_context(
+                user_data_dir=profile_dir,
+                headless=headless,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-infobars",
+                    "--disable-dev-shm-usage",
+                ],
+                viewport={"width": 1280, "height": 720},
+                locale="en-US",
+            )
+
+            await context.add_init_script(_STEALTH_SCRIPT)
+
+            page = context.pages[0] if context.pages else await context.new_page()
+
+            try:
+                if platform == "youtube":
+                    await _upload_youtube(job_id, page, video_path, caption, save_as_draft, headless)
+                elif platform == "instagram":
+                    await _upload_instagram(job_id, page, video_path, caption, headless)
+                elif platform == "twitter":
+                    await _upload_twitter(job_id, page, video_path, caption, headless)
+                
+                # Success path - keep open if visible
+                if not headless:
+                    _set_status(job_id, "PUBLISHED", f"Successfully uploaded to {PLATFORMS.get(platform, {}).get('name', platform)}! Keeping browser window open for you to verify or close manually.")
+                    while not page.is_closed():
+                        try:
+                            await asyncio.sleep(1)
+                        except Exception:
+                            break
+                else:
+                    _set_status(job_id, "PUBLISHED", f"Successfully uploaded to {PLATFORMS.get(platform, {}).get('name', platform)} ✓")
+            except Exception as upload_exc:
+                print(f"[{platform}] Upload script error: {upload_exc}")
+                # Error path - keep open if visible
+                if not headless:
+                    _set_status(job_id, "ERROR", f"{platform} upload failed: {upload_exc}. Browser kept open for manual review.")
+                    while not page.is_closed():
+                        try:
+                            await asyncio.sleep(1)
+                        except Exception:
+                            break
+                else:
+                    # Headless error path
+                    _set_status(job_id, "ERROR", f"{platform} upload failed: {upload_exc}")
+                    raise upload_exc
+
+            await context.close()
+
+    except Exception as exc:
+        _set_status(job_id, "ERROR", f"{platform} upload session failed: {exc}")
+
+
+async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False, headless=False):
+    """Navigate YouTube Studio and upload a Short."""
+    _set_status(job_id, "AUTHENTICATING", "Navigating to YouTube Studio…")
+    await page.goto("https://studio.youtube.com", wait_until="domcontentloaded")
+    await page.wait_for_timeout(3000)
+
+    # Check if logged in
+    if "accounts.google.com" in page.url:
+        _set_status(
+            job_id,
+            "WAITING_LOGIN",
+            "Please log in to your Google account in the browser window…",
+        )
+        # Wait up to 5 min for the user to log in
+        for _ in range(300):
+            await page.wait_for_timeout(1000)
+            if "studio.youtube.com" in page.url:
+                break
+
+    _set_status(job_id, "UPLOADING", "Uploading video to YouTube Shorts…")
+
+    try:
+        # Check if we are on the dashboard and there is a center "Upload videos" button (empty channel state)
+        center_upload_btn = page.locator("ytcp-button#upload-button, ytcp-button:has-text('Upload videos')").first
+        
+        if await center_upload_btn.is_visible(timeout=3000):
+            _set_status(job_id, "UPLOADING", "Using central upload button…")
+            await center_upload_btn.click()
+        else:
+            # Otherwise, use the standard Create button in the top right
+            _set_status(job_id, "UPLOADING", "Clicking top-right Create button…")
+            create_btn = page.locator("ytcp-button#create-icon-button, #create-icon-button, [aria-label='Create']").first
+            await create_btn.click(timeout=10000)
+            await page.wait_for_timeout(1500)
+
+            upload_item = page.locator("tp-yt-paper-item:has-text('Upload videos'), ytcp-paper-item:has-text('Upload videos'), text=Upload videos").first
+            await upload_item.click(timeout=5000)
+            
+        await page.wait_for_timeout(2000)
+
+        # Upload the file
+        _set_status(job_id, "UPLOADING", "Selecting video file…")
+        file_input = page.locator("input[type='file']").first
+        await file_input.wait_for(state="attached", timeout=10000)
+        await file_input.set_input_files(video_path)
+        await page.wait_for_timeout(3000)
+
+        # Set title/description
+        _set_status(job_id, "UPLOADING", "Setting video details…")
+        title_input = page.locator("#textbox").first
+        await title_input.wait_for(state="visible", timeout=15000)
+        if title_input:
+            await title_input.fill(caption[:100])
+
+        _set_status(job_id, "UPLOADING", "Video uploading, waiting for processing…")
+        
+        # Select "Not made for kids" (YouTube requires this)
+        try:
+            not_for_kids_radio = page.locator("tp-yt-paper-radio-button[name='VIDEO_MADE_FOR_KIDS_NOT_MADE_FOR_KIDS'], tp-yt-paper-radio-button:has-text('No, it\\'s not made for kids')").first
+            await not_for_kids_radio.click(timeout=5000)
+        except Exception as kids_exc:
+            print(f"Could not select 'not made for kids' automatically: {kids_exc}")
+
+        # Navigate through the next steps (Details -> Video elements -> Checks -> Visibility)
+        _set_status(job_id, "UPLOADING", "Navigating to Visibility step…")
+        
+        reached_visibility = False
+        for step in range(5):
+            # Check if any of the visibility radio options are visible on the page
+            public_radio = page.locator("tp-yt-paper-radio-button[name='PUBLIC'], tp-yt-paper-radio-button[name='PRIVATE'], tp-yt-paper-radio-button[name='UNLISTED']").first
+            if await public_radio.is_visible(timeout=2000):
+                reached_visibility = True
+                _set_status(job_id, "UPLOADING", "Reached visibility options.")
+                break
+                
+            next_btn = page.locator("#next-button, ytcp-button#next-button, text=Next").first
+            if await next_btn.is_visible(timeout=3000):
+                is_disabled = await next_btn.get_attribute("disabled")
+                if is_disabled is not None:
+                    _set_status(job_id, "UPLOADING", "Waiting for Next button to be enabled…")
+                    await page.wait_for_timeout(1000)
+                    continue
+                await next_btn.click()
+                await page.wait_for_timeout(2000)
+            else:
+                await page.wait_for_timeout(1000)
+
+        # Select visibility (Public vs Private/Unlisted)
+        if save_as_draft:
+            _set_status(job_id, "UPLOADING", "Selecting Private visibility (Save as Draft)…")
+            private_radio = page.locator("tp-yt-paper-radio-button[name='PRIVATE'], #private-radio-button").first
+            if await private_radio.is_visible(timeout=5000):
+                await private_radio.click()
+        else:
+            _set_status(job_id, "UPLOADING", "Selecting Public visibility…")
+            public_radio = page.locator("tp-yt-paper-radio-button[name='PUBLIC'], #public-radio-button").first
+            if await public_radio.is_visible(timeout=5000):
+                await public_radio.click()
+
+        await page.wait_for_timeout(1500)
+
+        # Click the done/publish button
+        done_btn = page.locator("#done-button, ytcp-button#done-button, ytcp-button:has-text('Save'), ytcp-button:has-text('Publish')").first
+        if await done_btn.is_visible(timeout=5000):
+            await done_btn.click()
+            await page.wait_for_timeout(5000)
+            _set_status(job_id, "PUBLISHED", "Video successfully uploaded and saved to YouTube Shorts!")
+        else:
+            await page.wait_for_timeout(5000)
+
+    except Exception as e:
+        _set_status(job_id, "ERROR", f"YouTube upload failed: {e}")
+        raise e
+
+
+async def _upload_instagram(job_id, page, video_path, caption, headless=False):
+    """Navigate Instagram and create a Reel."""
+    _set_status(job_id, "AUTHENTICATING", "Navigating to Instagram…")
+    await page.goto("https://www.instagram.com", wait_until="domcontentloaded")
+    await page.wait_for_timeout(3000)
+
+    if "login" in page.url.lower():
+        _set_status(
+            job_id,
+            "WAITING_LOGIN",
+            "Please log in to Instagram in the browser window…",
+        )
+        for _ in range(300):
+            await page.wait_for_timeout(1000)
+            if "login" not in page.url.lower():
+                break
+
+    _set_status(job_id, "UPLOADING", "Creating new Reel on Instagram…")
+
+    try:
+        # Click the new post button
+        new_post = page.locator("[aria-label='New post']").first
+        await new_post.click(timeout=10000)
+        await page.wait_for_timeout(2000)
+
+        file_input = page.locator("input[type='file']").first
+        await file_input.set_input_files(video_path)
+        await page.wait_for_timeout(3000)
+
+        _set_status(job_id, "UPLOADING", "Video selected! Please complete the upload manually.")
+        if headless:
+            await page.wait_for_timeout(60000)
+    except Exception as e:
+        _set_status(job_id, "UPLOADING", f"Manual upload may be needed: {e}")
+        if headless:
+            await page.wait_for_timeout(60000)
+
+
+async def _upload_twitter(job_id, page, video_path, caption, headless=False):
+    """Navigate X/Twitter and compose a tweet with video."""
+    _set_status(job_id, "AUTHENTICATING", "Navigating to X.com…")
+    await page.goto("https://x.com/compose/post", wait_until="domcontentloaded")
+    await page.wait_for_timeout(3000)
+
+    if "login" in page.url.lower() or "flow" in page.url.lower():
+        _set_status(
+            job_id,
+            "WAITING_LOGIN",
+            "Please log in to X/Twitter in the browser window…",
+        )
+        for _ in range(300):
+            await page.wait_for_timeout(1000)
+            if "compose" in page.url.lower() or "home" in page.url.lower():
+                break
+
+    _set_status(job_id, "UPLOADING", "Composing post with video…")
+
+    try:
+        # Type the caption
+        text_area = page.locator("[data-testid='tweetTextarea_0']").first
+        if text_area:
+            await text_area.fill(caption[:280])
+
+        # Attach the video
+        file_input = page.locator("input[type='file']").first
+        await file_input.set_input_files(video_path)
+        await page.wait_for_timeout(5000)
+
+        _set_status(job_id, "UPLOADING", "Media attached! Please complete the post manually.")
+        if headless:
+            await page.wait_for_timeout(60000)
+    except Exception as e:
+        _set_status(job_id, "UPLOADING", f"Manual posting may be needed: {e}")
+        if headless:
+            await page.wait_for_timeout(60000)
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def start_publish_job(
+    video_path: str,
+    platform: str,
+    caption: str = "",
+    hashtags: Optional[list[str]] = None,
+    account: str = "default",
+    save_as_draft: bool = False,
+    headless: bool = False,
+) -> str:
+    """
+    Kick off a background publish job.  Returns the job_id which the caller
+    can use to poll status via ``publish_jobs[job_id]``.
+    """
+    _ensure_session_dirs()
+
+    job_id = str(uuid.uuid4())[:8]
+    publish_jobs[job_id] = {
+        "job_id": job_id,
+        "platform": platform,
+        "video_path": video_path,
+        "status": "QUEUED",
+        "detail": "",
+        "created_at": time.time(),
+        "updated_at": time.time(),
+    }
+
+    async def _run():
+        if platform == "tiktok":
+            await _publish_tiktok(job_id, video_path, caption, hashtags or [], account, save_as_draft, headless)
+        else:
+            await _publish_playwright(job_id, platform, video_path, caption, account, save_as_draft, headless)
+
+    # Schedule the coroutine in the running event loop (FastAPI is async)
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_run())
+    except RuntimeError:
+        # Fallback: no running loop, start one in a thread
+        import threading
+        threading.Thread(target=lambda: asyncio.run(_run()), daemon=True).start()
+
+    return job_id

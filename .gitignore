@@ -44,3 +44,10 @@ Thumbs.db
 models/
 .sixth/
 
+# Browser sessions (publish auth cookies)
+sessions/
+
+# Scratch directory
+scratch/
+
+

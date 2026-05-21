@@ -30,8 +30,9 @@ python-multipart
 pycaps
 ffmpeg-python
 
-# Publishing (Stubs for now)
-# TikTokAutoUploader
+# Publishing
+playwright
+tiktokautouploader
 
 # TTS Engine
 supertonic
