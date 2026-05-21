@@ -178,6 +178,29 @@ def run_ingest_step(url: str, temp_dir: str) -> tuple:
             if convert_playwright_cookies(pw_json, pw_txt):
                 cookie_file = pw_txt
 
+    # 3. Check environment variable for YouTube cookies (Base64 or raw text)
+    if not cookie_file:
+        env_cookies = os.environ.get("YOUTUBE_COOKIES")
+        if env_cookies:
+            try:
+                import base64
+                # Try to decode if base64-encoded
+                try:
+                    decoded = base64.b64decode(env_cookies.strip()).decode('utf-8')
+                    if "youtube.com" in decoded or "Netscape" in decoded:
+                        env_cookies = decoded
+                        print("[INGEST] Decoded Base64 YOUTUBE_COOKIES env variable.")
+                except Exception:
+                    pass
+                
+                temp_cookie_path = os.path.join(temp_dir, "env_youtube_cookies.txt")
+                with open(temp_cookie_path, 'w', encoding='utf-8') as f:
+                    f.write(env_cookies)
+                cookie_file = temp_cookie_path
+                print(f"[INGEST] Loaded YouTube cookies from YOUTUBE_COOKIES environment variable.")
+            except Exception as env_err:
+                print(f"[WARNING] Failed to parse YOUTUBE_COOKIES environment variable: {env_err}")
+
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': f"{audio_base}.%(ext)s", 
