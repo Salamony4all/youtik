@@ -32,6 +32,9 @@ RUN playwright install chromium && \
 # Copy application source code
 COPY . .
 
+# Pre-download Whisper models into the image (avoids runtime download + OOM restarts)
+RUN python pre_download_models.py
+
 # Expose backend port
 EXPOSE 8000
 
