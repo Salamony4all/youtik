@@ -123,41 +123,124 @@ def cleanup_temp_folder(temp_dir: str, max_retries: int = 3, delay: float = 1.0)
             else:
                 print(f"Warning: Could not completely clean temp folder due to persistent lock: {e}")
 
-def convert_playwright_cookies(json_path: str, txt_path: str) -> bool:
+def parse_cookies_string_to_netscape(cookie_str: str, log_fn=None) -> str:
+    """
+    Robustly parses a cookie string from environment variables or files.
+    Supports: Base64 decoding, JSON formats, Netscape format, and unescaping of newlines/tabs.
+    """
+    def log(msg):
+        print(msg)
+        if log_fn:
+            log_fn(msg)
+            
+    cookie_str = cookie_str.strip()
+    if not cookie_str:
+        return ""
+        
+    # 1. Check for Base64 encoding
+    try:
+        import base64
+        cleaned_b64 = "".join(cookie_str.split())
+        decoded = base64.b64decode(cleaned_b64).decode('utf-8', errors='ignore')
+        # If it looks like JSON or Netscape format, adopt the decoded text
+        if "youtube.com" in decoded or "Netscape" in decoded or decoded.strip().startswith("["):
+            cookie_str = decoded.strip()
+            log("[COOKIES] Successfully decoded Base64 cookie string.")
+    except Exception:
+        pass
+
+    # 2. Unescape newlines and tabs (crucial for Render env vars where users cannot easily paste newlines)
+    cookie_str = cookie_str.replace("\\n", "\n").replace("\\t", "\t")
+
+    # 3. Check for JSON format
+    if cookie_str.startswith("["):
+        try:
+            cookies = json.loads(cookie_str)
+            lines = [
+                "# Netscape HTTP Cookie File",
+                "# http://curl.haxx.se/rfc/cookie_spec.html",
+                "# This is a generated file! Do not edit.\n"
+            ]
+            for c in cookies:
+                domain = c.get("domain", "")
+                include_subdomains = "TRUE" if domain.startswith(".") else "FALSE"
+                path = c.get("path", "/")
+                secure_val = c.get("secure")
+                secure = "TRUE" if secure_val in [True, "TRUE", "true"] else "FALSE"
+                
+                # Check different expiration fields
+                expires_val = c.get("expires") or c.get("expirationDate") or c.get("expiry") or 0
+                try:
+                    expires = int(float(expires_val))
+                except Exception:
+                    expires = 0
+                    
+                name = c.get("name", "")
+                value = c.get("value", "")
+                
+                lines.append(f"{domain}\t{include_subdomains}\t{path}\t{secure}\t{expires}\t{name}\t{value}")
+                
+            cookie_str = "\n".join(lines) + "\n"
+            log("[COOKIES] Successfully parsed and converted JSON cookies format to Netscape.")
+        except Exception as json_err:
+            log(f"[WARNING] Tried parsing cookies as JSON but failed: {json_err}")
+
+    # 4. Diagnostics & Validation
+    domains = set()
+    youtube_found = False
+    for line in cookie_str.split("\n"):
+        line = line.strip()
+        if line and not line.startswith("#"):
+            parts = line.split("\t")
+            if len(parts) >= 6:
+                domain = parts[0]
+                domains.add(domain)
+                if "youtube.com" in domain:
+                    youtube_found = True
+                    
+    log(f"[COOKIES] Cookie string length: {len(cookie_str)} characters.")
+    if domains:
+        log(f"[COOKIES] Parsed {len(domains)} distinct domains: {', '.join(sorted(list(domains))[:10])}...")
+    else:
+        log("[WARNING] No valid domains parsed from the cookie string.")
+        
+    if not youtube_found:
+        log("[WARNING] '.youtube.com' domain keys were NOT found in the loaded cookies! Ingestion may fail.")
+    else:
+        log("[COOKIES] Valid '.youtube.com' keys detected in loaded cookies!")
+        
+    return cookie_str
+
+def convert_playwright_cookies(json_path: str, txt_path: str, log_fn=None) -> bool:
     """Converts Playwright JSON cookies format to standard Netscape cookies format."""
+    def log(msg):
+        print(msg)
+        if log_fn:
+            log_fn(msg)
     try:
         if not os.path.exists(json_path):
             return False
         with open(json_path, 'r', encoding='utf-8') as f:
-            cookies = json.load(f)
-        
-        lines = [
-            "# Netscape HTTP Cookie File",
-            "# http://curl.haxx.se/rfc/cookie_spec.html",
-            "# This is a generated file! Do not edit.\n"
-        ]
-        for c in cookies:
-            domain = c.get("domain", "")
-            include_subdomains = "TRUE" if domain.startswith(".") else "FALSE"
-            path = c.get("path", "/")
-            secure = "TRUE" if c.get("secure", False) else "FALSE"
-            expires = int(c.get("expires", 0))
-            name = c.get("name", "")
-            value = c.get("value", "")
-            
-            lines.append(f"{domain}\t{include_subdomains}\t{path}\t{secure}\t{expires}\t{name}\t{value}")
-            
+            cookie_str = f.read()
+        netscape_content = parse_cookies_string_to_netscape(cookie_str, log_fn=log_fn)
+        if not netscape_content:
+            return False
         os.makedirs(os.path.dirname(txt_path), exist_ok=True)
         with open(txt_path, 'w', encoding='utf-8') as f:
-            f.write("\n".join(lines) + "\n")
-        print(f"[COOKIES] Successfully converted Playwright cookies from {json_path} to Netscape {txt_path}")
+            f.write(netscape_content)
+        log(f"[COOKIES] Successfully converted Playwright cookies from {json_path} to Netscape {txt_path}")
         return True
     except Exception as e:
-        print(f"[WARNING] Playwright cookies conversion failed: {e}")
+        log(f"[WARNING] Playwright cookies conversion failed: {e}")
         return False
 
-def run_ingest_step(url: str, temp_dir: str) -> tuple:
-    print(f"Starting ingest for: {url}")
+def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
+    def log(msg):
+        print(msg)
+        if log_fn:
+            log_fn(msg)
+            
+    log(f"Starting ingest for: {url}")
     audio_base = os.path.join(temp_dir, "source_audio")
     
     # Locate best cookie file path
@@ -167,7 +250,7 @@ def run_ingest_step(url: str, temp_dir: str) -> tuple:
     for root_cookie in ["youtube_cookies.txt", "cookies.txt"]:
         if os.path.exists(root_cookie):
             cookie_file = root_cookie
-            print(f"[INGEST] Found YouTube cookies file in workspace root: {cookie_file}")
+            log(f"[INGEST] Found YouTube cookies file in workspace root: {cookie_file}")
             break
             
     # 2. Check Playwright session cookies
@@ -175,7 +258,7 @@ def run_ingest_step(url: str, temp_dir: str) -> tuple:
         pw_json = "sessions/youtube/default/cookies.json"
         pw_txt = "sessions/youtube/default/cookies.txt"
         if os.path.exists(pw_json):
-            if convert_playwright_cookies(pw_json, pw_txt):
+            if convert_playwright_cookies(pw_json, pw_txt, log_fn=log_fn):
                 cookie_file = pw_txt
 
     # 3. Check environment variable for YouTube cookies (Base64 or raw text)
@@ -183,23 +266,18 @@ def run_ingest_step(url: str, temp_dir: str) -> tuple:
         env_cookies = os.environ.get("YOUTUBE_COOKIES")
         if env_cookies:
             try:
-                import base64
-                # Try to decode if base64-encoded
-                try:
-                    decoded = base64.b64decode(env_cookies.strip()).decode('utf-8')
-                    if "youtube.com" in decoded or "Netscape" in decoded:
-                        env_cookies = decoded
-                        print("[INGEST] Decoded Base64 YOUTUBE_COOKIES env variable.")
-                except Exception:
-                    pass
-                
-                temp_cookie_path = os.path.join(temp_dir, "env_youtube_cookies.txt")
-                with open(temp_cookie_path, 'w', encoding='utf-8') as f:
-                    f.write(env_cookies)
-                cookie_file = temp_cookie_path
-                print(f"[INGEST] Loaded YouTube cookies from YOUTUBE_COOKIES environment variable.")
+                parsed_content = parse_cookies_string_to_netscape(env_cookies, log_fn=log_fn)
+                if parsed_content:
+                    temp_cookie_path = os.path.join(temp_dir, "env_youtube_cookies.txt")
+                    with open(temp_cookie_path, 'w', encoding='utf-8') as f:
+                        f.write(parsed_content)
+                    cookie_file = temp_cookie_path
+                    log(f"[INGEST] Loaded YouTube cookies from YOUTUBE_COOKIES environment variable.")
             except Exception as env_err:
-                print(f"[WARNING] Failed to parse YOUTUBE_COOKIES environment variable: {env_err}")
+                log(f"[WARNING] Failed to parse YOUTUBE_COOKIES environment variable: {env_err}")
+
+    if not cookie_file:
+        log("[WARNING] No YouTube cookies found (tried youtube_cookies.txt, cookies.json, and YOUTUBE_COOKIES environment variable). Datacenter IPs will likely be blocked!")
 
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -221,7 +299,7 @@ def run_ingest_step(url: str, temp_dir: str) -> tuple:
     
     if cookie_file:
         ydl_opts['cookiefile'] = cookie_file
-        print(f"[INGEST] Injecting cookies into yt-dlp from: {cookie_file}")
+        log(f"[INGEST] Injecting cookies into yt-dlp from: {cookie_file}")
 
     
     metadata = {
