@@ -137,11 +137,15 @@ def parse_cookies_string_to_netscape(cookie_str: str, log_fn=None) -> str:
     if not cookie_str:
         return ""
         
+    # Normalize carriage returns and newlines at the very start
+    cookie_str = cookie_str.replace("\r\n", "\n").replace("\r", "\n")
+
     # 1. Check for Base64 encoding
     try:
         import base64
         cleaned_b64 = "".join(cookie_str.split())
         decoded = base64.b64decode(cleaned_b64).decode('utf-8', errors='ignore')
+        decoded = decoded.replace("\r\n", "\n").replace("\r", "\n")
         # If it looks like JSON or Netscape format, adopt the decoded text
         if "youtube.com" in decoded or "Netscape" in decoded or decoded.strip().startswith("["):
             cookie_str = decoded.strip()
@@ -151,6 +155,7 @@ def parse_cookies_string_to_netscape(cookie_str: str, log_fn=None) -> str:
 
     # 2. Unescape newlines and tabs (crucial for Render env vars where users cannot easily paste newlines)
     cookie_str = cookie_str.replace("\\n", "\n").replace("\\t", "\t")
+    cookie_str = cookie_str.replace("\r\n", "\n").replace("\r", "\n")
 
     # 3. Check for JSON format
     if cookie_str.startswith("["):
@@ -209,7 +214,10 @@ def parse_cookies_string_to_netscape(cookie_str: str, log_fn=None) -> str:
     else:
         log("[COOKIES] Valid '.youtube.com' keys detected in loaded cookies!")
         
+    # Ensure final output has strictly internal \n newlines and no \r carriage returns
+    cookie_str = cookie_str.replace("\r\n", "\n").replace("\r", "\n")
     return cookie_str
+
 
 def convert_playwright_cookies(json_path: str, txt_path: str, log_fn=None) -> bool:
     """Converts Playwright JSON cookies format to standard Netscape cookies format."""
@@ -226,13 +234,16 @@ def convert_playwright_cookies(json_path: str, txt_path: str, log_fn=None) -> bo
         if not netscape_content:
             return False
         os.makedirs(os.path.dirname(txt_path), exist_ok=True)
-        with open(txt_path, 'w', encoding='utf-8') as f:
+        # Force Unix newlines on Unix/Linux, and Windows newlines on Windows
+        out_newline = "\r\n" if os.name == "nt" else "\n"
+        with open(txt_path, 'w', encoding='utf-8', newline=out_newline) as f:
             f.write(netscape_content)
         log(f"[COOKIES] Successfully converted Playwright cookies from {json_path} to Netscape {txt_path}")
         return True
     except Exception as e:
         log(f"[WARNING] Playwright cookies conversion failed: {e}")
         return False
+
 
 def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
     def log(msg):
@@ -243,44 +254,74 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
     log(f"Starting ingest for: {url}")
     audio_base = os.path.join(temp_dir, "source_audio")
     
-    # Locate best cookie file path
-    cookie_file = None
+    # Locate best cookie source and content
+    cookie_source = None
+    raw_cookie_content = None
     
     # 1. Check root cookies files
     for root_cookie in ["youtube_cookies.txt", "cookies.txt"]:
         if os.path.exists(root_cookie):
-            cookie_file = root_cookie
-            log(f"[INGEST] Found YouTube cookies file in workspace root: {cookie_file}")
-            break
-            
+            try:
+                with open(root_cookie, 'r', encoding='utf-8', errors='ignore') as f:
+                    raw_cookie_content = f.read()
+                cookie_source = f"workspace root file ({root_cookie})"
+                log(f"[INGEST] Found YouTube cookies file in workspace root: {root_cookie}")
+                break
+            except Exception as e:
+                log(f"[WARNING] Failed to read {root_cookie}: {e}")
+                
     # 2. Check Playwright session cookies
-    if not cookie_file:
+    if not raw_cookie_content:
         pw_json = "sessions/youtube/default/cookies.json"
-        pw_txt = "sessions/youtube/default/cookies.txt"
         if os.path.exists(pw_json):
-            if convert_playwright_cookies(pw_json, pw_txt, log_fn=log_fn):
-                cookie_file = pw_txt
+            try:
+                with open(pw_json, 'r', encoding='utf-8', errors='ignore') as f:
+                    raw_cookie_content = f.read()
+                cookie_source = f"Playwright session cookies ({pw_json})"
+                log(f"[INGEST] Found Playwright session cookies: {pw_json}")
+            except Exception as e:
+                log(f"[WARNING] Failed to read {pw_json}: {e}")
 
     # 3. Check environment variable for YouTube cookies (Base64 or raw text)
-    if not cookie_file:
+    if not raw_cookie_content:
         env_cookies = os.environ.get("YOUTUBE_COOKIES")
         if env_cookies:
-            try:
-                parsed_content = parse_cookies_string_to_netscape(env_cookies, log_fn=log_fn)
-                if parsed_content:
-                    temp_cookie_path = os.path.join(temp_dir, "env_youtube_cookies.txt")
-                    with open(temp_cookie_path, 'w', encoding='utf-8') as f:
-                        f.write(parsed_content)
-                    cookie_file = temp_cookie_path
-                    log(f"[INGEST] Loaded YouTube cookies from YOUTUBE_COOKIES environment variable.")
-            except Exception as env_err:
-                log(f"[WARNING] Failed to parse YOUTUBE_COOKIES environment variable: {env_err}")
+            raw_cookie_content = env_cookies
+            cookie_source = "YOUTUBE_COOKIES environment variable"
+            log(f"[INGEST] Found cookies in YOUTUBE_COOKIES environment variable.")
+
+    cookie_file = None
+    if raw_cookie_content:
+        try:
+            parsed_content = parse_cookies_string_to_netscape(raw_cookie_content, log_fn=log_fn)
+            if parsed_content:
+                temp_cookie_path = os.path.join(temp_dir, "active_youtube_cookies.txt")
+                # Force Unix newlines on non-Windows platforms, and Windows newlines on Windows
+                out_newline = "\r\n" if os.name == "nt" else "\n"
+                with open(temp_cookie_path, 'w', encoding='utf-8', newline=out_newline) as f:
+                    f.write(parsed_content)
+                cookie_file = temp_cookie_path
+                log(f"[INGEST] Successfully sanitized and wrote cookies from {cookie_source} to {cookie_file}")
+            else:
+                log(f"[WARNING] Sanitized content from {cookie_source} is empty!")
+        except Exception as err:
+            log(f"[WARNING] Failed to sanitize cookies from {cookie_source}: {err}")
 
     if not cookie_file:
         log("[WARNING] No YouTube cookies found (tried youtube_cookies.txt, cookies.json, and YOUTUBE_COOKIES environment variable). Datacenter IPs will likely be blocked!")
 
+    # Use cookie-compatible clients when cookies are available.
+    # 'android' does NOT support cookies and gets skipped by yt-dlp, causing
+    # "Requested format is not available" on datacenter IPs where the fallback
+    # web client alone can't find audio-only streams.
+    if cookie_file:
+        player_clients = ['web_creator', 'mweb', 'web']
+    else:
+        player_clients = ['android', 'web']
+
     ydl_opts = {
-        'format': 'bestaudio/best',
+        # Multi-tier format fallback: prefer audio-only, then any stream
+        'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
         'outtmpl': f"{audio_base}.%(ext)s", 
         'noplaylist': True,
         'postprocessors': [{
@@ -293,7 +334,7 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
         'remote_components': ['ejs:github'],
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'web']
+                'player_client': player_clients
             }
         }
     }
@@ -301,6 +342,7 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
     if cookie_file:
         ydl_opts['cookiefile'] = cookie_file
         log(f"[INGEST] Injecting cookies into yt-dlp from: {cookie_file}")
+        log(f"[INGEST] Using cookie-compatible player clients: {player_clients}")
 
     
     metadata = {
@@ -364,9 +406,19 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
                 ydl.download([url])
             break
         except Exception as e:
-            if attempt < 2 and ("WinError 32" in str(e) or "Unable to rename file" in str(e)):
-                print(f"File lock detected during yt-dlp download/rename. Retrying in 5s... ({attempt + 1}/3)")
+            err_str = str(e)
+            if attempt < 2 and ("WinError 32" in err_str or "Unable to rename file" in err_str):
+                log(f"File lock detected during yt-dlp download/rename. Retrying in 5s... ({attempt + 1}/3)")
                 time.sleep(5)
+            elif attempt < 2 and "Requested format is not available" in err_str:
+                # Relax format to accept literally anything downloadable
+                log(f"[RETRY] Format not available with current selector. Relaxing to 'best' on attempt {attempt + 2}/3...")
+                ydl_opts['format'] = 'best'
+                time.sleep(2)
+            elif "Sign in to confirm" in err_str or "cookies" in err_str.lower():
+                log("[ERROR] YouTube is requiring authentication. Your cookies may have been rotated.")
+                log("[ERROR] Re-export fresh cookies from an Incognito window (visit youtube.com/robots.txt, export, close immediately).")
+                raise e
             else:
                 raise e
         
