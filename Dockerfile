@@ -21,7 +21,7 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install dependencies (use CPU-only PyTorch to minimize build size and time)
-RUN pip install --upgrade pip && \
+RUN pip install --upgrade pip setuptools wheel && \
     pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 # Install Playwright Chromium and its system dependencies

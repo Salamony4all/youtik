@@ -1,39 +1,40 @@
 # Core
-streamlit
-python-dotenv
+streamlit==1.57.0
+python-dotenv==1.2.2
 
 # Media Ingest
-yt-dlp
+yt-dlp==2026.3.17
 
 # Transcription & Audio (Local Brawn)
-stable-ts
-demucs
+stable-ts==2.19.1
+demucs==4.0.1
 openai-whisper
-faster-whisper
-torch
-torchaudio
+faster-whisper==1.2.1
+torch==2.8.0
+torchaudio==2.8.0
 
 # Semantic Intelligence (Google Brain)
-google-genai
+google-genai==2.0.1
 
 # Assets & Web
 gallery-dl
-requests
+requests==2.33.1
 
 # Server & API
-fastapi
-uvicorn
-pydantic
-python-multipart
+fastapi==0.115.14
+uvicorn==0.46.0
+pydantic==2.11.10
+python-multipart==0.0.27
 
 # Rendering & Subtitles
-pycaps
-ffmpeg-python
+pycaps==0.2.0
+ffmpeg-python==0.2.0
 
 # Publishing
-playwright
-tiktokautouploader
+playwright==1.60.0
+tiktokautouploader==6.0
+inference==1.2.7
 
 # TTS Engine
-supertonic
-soundfile
+supertonic==1.2.3
+soundfile==0.13.1
