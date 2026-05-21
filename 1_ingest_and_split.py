@@ -272,9 +272,13 @@ def download_via_playwright(url: str, output_wav_path: str, log_fn=None) -> bool
     SESSIONS_DIR = os.path.join(".", "sessions")
     GOOGLE_PROFILE_DIR = os.path.join(SESSIONS_DIR, "google_profile")
 
-    # Check if Google profile exists (user must have signed in via the Publish panel)
-    if not os.path.exists(GOOGLE_PROFILE_DIR) or not os.listdir(GOOGLE_PROFILE_DIR):
-        log("[FALLBACK] No Google browser profile found. Please sign in via the Publish panel first.")
+    # Determine if we can use a persistent Google profile or need cookies
+    has_google_profile = os.path.exists(GOOGLE_PROFILE_DIR) and bool(os.listdir(GOOGLE_PROFILE_DIR))
+    env_cookies = os.environ.get("YOUTUBE_COOKIES", "")
+
+    if not has_google_profile and not env_cookies:
+        log("[FALLBACK] No Google browser profile and no YOUTUBE_COOKIES env var. Cannot authenticate.")
+        log("[FALLBACK] Set YOUTUBE_COOKIES in Render dashboard or sign in via the Publish panel locally.")
         return False
 
     STEALTH_SCRIPT = """
@@ -304,20 +308,64 @@ def download_via_playwright(url: str, output_wav_path: str, log_fn=None) -> bool
 
     try:
         with sync_playwright() as pw:
-            log("[FALLBACK] Launching Chromium with Google profile...")
-            context = pw.chromium.launch_persistent_context(
-                user_data_dir=GOOGLE_PROFILE_DIR,
-                headless=True,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-sandbox",
-                    "--disable-infobars",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                ],
-                viewport={"width": 1280, "height": 720},
-                locale="en-US",
-            )
+            context = None
+
+            if has_google_profile:
+                log("[FALLBACK] Launching Chromium with Google profile...")
+                context = pw.chromium.launch_persistent_context(
+                    user_data_dir=GOOGLE_PROFILE_DIR,
+                    headless=True,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                        "--disable-infobars",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                    ],
+                    viewport={"width": 1280, "height": 720},
+                    locale="en-US",
+                )
+            else:
+                log("[FALLBACK] No Google profile. Launching Chromium with YOUTUBE_COOKIES...")
+                browser = pw.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                        "--disable-infobars",
+                        "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                    ],
+                )
+                context = browser.new_context(
+                    viewport={"width": 1280, "height": 720},
+                    locale="en-US",
+                )
+
+                # Parse and inject cookies from YOUTUBE_COOKIES env var
+                try:
+                    parsed = parse_cookies_string_to_netscape(env_cookies, log_fn=log_fn)
+                    if parsed:
+                        cookie_list = []
+                        for line in parsed.strip().split("\n"):
+                            if line.startswith("#") or not line.strip():
+                                continue
+                            parts = line.split("\t")
+                            if len(parts) >= 7:
+                                cookie_list.append({
+                                    "name": parts[5],
+                                    "value": parts[6],
+                                    "domain": parts[0],
+                                    "path": parts[2],
+                                    "secure": parts[3].upper() == "TRUE",
+                                    "httpOnly": False,
+                                    "expires": float(parts[4]) if parts[4] != "0" else -1,
+                                })
+                        if cookie_list:
+                            context.add_cookies(cookie_list)
+                            log(f"[FALLBACK] Injected {len(cookie_list)} cookies into browser context.")
+                except Exception as cookie_err:
+                    log(f"[FALLBACK] Cookie injection failed: {cookie_err}")
 
             context.add_init_script(STEALTH_SCRIPT)
             page = context.pages[0] if context.pages else context.new_page()

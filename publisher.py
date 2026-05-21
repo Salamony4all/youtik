@@ -130,16 +130,24 @@ async def _run_google_login(job_id: str):
     profile_dir = str(GOOGLE_PROFILE_DIR)
     os.makedirs(profile_dir, exist_ok=True)
 
+    # Detect headless server (Render, Docker, CI, etc.)
+    is_headless_server = (
+        os.environ.get("RENDER") is not None
+        or os.environ.get("DISPLAY") is None
+        or os.environ.get("DOCKER_CONTAINER") is not None
+    )
+
     try:
         async with async_playwright() as pw:
             context = await pw.chromium.launch_persistent_context(
                 user_data_dir=profile_dir,
-                headless=False,
+                headless=True if is_headless_server else False,
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",
                     "--disable-infobars",
                     "--disable-dev-shm-usage",
+                    "--disable-gpu",
                 ],
                 viewport={"width": 1280, "height": 800},
                 locale="en-US",
@@ -183,7 +191,34 @@ async def _run_google_login(job_id: str):
                 await context.close()
                 return
 
-            # Not logged in yet — wait for the user to sign in manually
+            # Not logged in yet — check if we're on a headless server
+            if is_headless_server:
+                # On Render/Docker, user can't interact with the browser
+                await context.close()
+                
+                # Check if YOUTUBE_COOKIES env var is set — that's the server alternative
+                has_cookies = bool(os.environ.get("YOUTUBE_COOKIES"))
+                if has_cookies:
+                    # Create a synthetic "authenticated" state from cookies
+                    master_data = {
+                        "name": "Cookie Session",
+                        "email": "Authenticated via YOUTUBE_COOKIES env var",
+                        "picture": "",
+                        "authenticated_at": time.time(),
+                        "auth_method": "cookies_env_var",
+                    }
+                    (SESSIONS_DIR / "google_master.json").write_text(
+                        json.dumps(master_data, indent=2)
+                    )
+                    login_jobs[job_id]["status"] = "AUTHENTICATED"
+                    login_jobs[job_id]["detail"] = "Connected via YOUTUBE_COOKIES ✓"
+                    login_jobs[job_id]["user"] = master_data
+                else:
+                    login_jobs[job_id]["status"] = "ERROR"
+                    login_jobs[job_id]["detail"] = "Headless server detected. Set the YOUTUBE_COOKIES environment variable in Render dashboard to authenticate."
+                return
+
+            # Desktop/local — wait for the user to sign in manually
             login_jobs[job_id]["status"] = "WAITING_LOGIN"
             login_jobs[job_id]["detail"] = "Please sign in to your Google account in the browser window…"
 
