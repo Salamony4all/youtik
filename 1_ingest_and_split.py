@@ -245,6 +245,247 @@ def convert_playwright_cookies(json_path: str, txt_path: str, log_fn=None) -> bo
         return False
 
 
+def download_via_playwright(url: str, output_wav_path: str, log_fn=None) -> bool:
+    """
+    Fallback download method using Playwright headless browser.
+    Bypasses YouTube bot detection by running a real browser with JavaScript
+    execution (solves BotGuard/PO tokens natively).
+    
+    Uses the same Google persistent profile from publisher.py for authentication.
+    Returns True on success, False on failure.
+    """
+    import subprocess
+    
+    def log(msg):
+        print(msg)
+        if log_fn:
+            log_fn(msg)
+
+    log("[FALLBACK] yt-dlp failed due to bot detection. Attempting Playwright browser download...")
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        log("[FALLBACK] Playwright not installed — cannot use browser fallback.")
+        return False
+
+    SESSIONS_DIR = os.path.join(".", "sessions")
+    GOOGLE_PROFILE_DIR = os.path.join(SESSIONS_DIR, "google_profile")
+
+    # Check if Google profile exists (user must have signed in via the Publish panel)
+    if not os.path.exists(GOOGLE_PROFILE_DIR) or not os.listdir(GOOGLE_PROFILE_DIR):
+        log("[FALLBACK] No Google browser profile found. Please sign in via the Publish panel first.")
+        return False
+
+    STEALTH_SCRIPT = """
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        window.navigator.chrome = { runtime: {} };
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+        Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    """
+
+    output_dir = os.path.dirname(output_wav_path)
+    temp_video = os.path.join(output_dir, "pw_download_temp.mp4")
+    captured_url = {"audio": None, "video": None}
+
+    def handle_response(response):
+        """Intercept network responses to capture audio/video stream URLs."""
+        url_str = response.url
+        content_type = response.headers.get("content-type", "")
+        
+        # Look for audio streams (DASH audio segments)
+        if "mime=audio" in url_str or "audio/mp4" in content_type or "audio/webm" in content_type:
+            if not captured_url["audio"]:
+                captured_url["audio"] = url_str
+        # Also capture video as fallback
+        elif "mime=video" in url_str and "itag=" in url_str:
+            if not captured_url["video"]:
+                captured_url["video"] = url_str
+
+    try:
+        with sync_playwright() as pw:
+            log("[FALLBACK] Launching Chromium with Google profile...")
+            context = pw.chromium.launch_persistent_context(
+                user_data_dir=GOOGLE_PROFILE_DIR,
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-infobars",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                ],
+                viewport={"width": 1280, "height": 720},
+                locale="en-US",
+            )
+
+            context.add_init_script(STEALTH_SCRIPT)
+            page = context.pages[0] if context.pages else context.new_page()
+
+            # Listen for network responses to capture stream URLs
+            page.on("response", handle_response)
+
+            log(f"[FALLBACK] Navigating to {url}...")
+            page.goto(url, wait_until="domcontentloaded")
+            page.wait_for_timeout(5000)
+
+            # Try to click play button if video didn't autoplay
+            try:
+                play_btn = page.locator("button.ytp-large-play-button, button.ytp-play-button")
+                if play_btn.count() > 0 and play_btn.first.is_visible():
+                    play_btn.first.click()
+                    log("[FALLBACK] Clicked play button.")
+                    page.wait_for_timeout(5000)
+            except Exception:
+                pass
+
+            # Try to extract the stream URL via YouTube's internal player API
+            stream_url = None
+            try:
+                stream_url = page.evaluate("""
+                    () => {
+                        const player = document.getElementById('movie_player');
+                        if (player && player.getVideoData) {
+                            // Try to get the streaming data from ytInitialPlayerResponse
+                            const data = window.ytInitialPlayerResponse;
+                            if (data && data.streamingData) {
+                                const formats = data.streamingData.adaptiveFormats || data.streamingData.formats || [];
+                                // Find best audio-only format
+                                const audio = formats.find(f => f.mimeType && f.mimeType.startsWith('audio/') && f.url);
+                                if (audio) return audio.url;
+                                // Fallback: any format with a URL
+                                const any = formats.find(f => f.url);
+                                if (any) return any.url;
+                            }
+                        }
+                        return null;
+                    }
+                """)
+            except Exception as eval_err:
+                log(f"[FALLBACK] JS evaluation failed: {eval_err}")
+
+            if stream_url:
+                log("[FALLBACK] Extracted stream URL via YouTube player API.")
+            elif captured_url["audio"]:
+                stream_url = captured_url["audio"]
+                log("[FALLBACK] Captured audio stream URL from network interception.")
+            elif captured_url["video"]:
+                stream_url = captured_url["video"]
+                log("[FALLBACK] Captured video stream URL from network interception (no audio-only found).")
+
+            if stream_url:
+                # Download the stream using the browser's authenticated context
+                log("[FALLBACK] Downloading stream via browser context...")
+                try:
+                    response = page.request.get(stream_url, timeout=120000)
+                    if response.ok:
+                        with open(temp_video, "wb") as f:
+                            f.write(response.body())
+                        log(f"[FALLBACK] Stream downloaded: {os.path.getsize(temp_video)} bytes")
+                    else:
+                        log(f"[FALLBACK] Stream download failed with status {response.status}")
+                        context.close()
+                        return False
+                except Exception as dl_err:
+                    log(f"[FALLBACK] Stream download error: {dl_err}")
+                    context.close()
+                    return False
+            else:
+                # Last resort: use page.video recording
+                log("[FALLBACK] No stream URL found. Trying page audio capture...")
+                
+                # Use the page's cookies to call yt-dlp with browser cookies
+                cookies = context.cookies()
+                log(f"[FALLBACK] Extracted {len(cookies)} cookies from browser context.")
+                
+                # Write cookies to Netscape format for yt-dlp
+                browser_cookie_path = os.path.join(output_dir, "browser_cookies.txt")
+                lines = [
+                    "# Netscape HTTP Cookie File",
+                    "# http://curl.haxx.se/rfc/cookie_spec.html",
+                    "# This is a generated file! Do not edit.",
+                    ""
+                ]
+                for c in cookies:
+                    domain = c.get("domain", "")
+                    flag = "TRUE" if domain.startswith(".") else "FALSE"
+                    path = c.get("path", "/")
+                    secure = "TRUE" if c.get("secure", False) else "FALSE"
+                    expiry = str(int(c.get("expires", 0)))
+                    name = c.get("name", "")
+                    value = c.get("value", "")
+                    lines.append(f"{domain}\t{flag}\t{path}\t{secure}\t{expiry}\t{name}\t{value}")
+                
+                with open(browser_cookie_path, "w", encoding="utf-8") as f:
+                    f.write("\n".join(lines))
+                
+                context.close()
+                
+                # Now retry yt-dlp with these fresh browser cookies
+                log("[FALLBACK] Retrying yt-dlp with fresh browser-extracted cookies...")
+                try:
+                    import yt_dlp
+                    audio_base = output_wav_path.replace(".wav", "")
+                    ydl_opts = {
+                        'format': 'bestaudio/best',
+                        'outtmpl': f"{audio_base}.%(ext)s",
+                        'noplaylist': True,
+                        'cookiefile': browser_cookie_path,
+                        'postprocessors': [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'wav',
+                            'preferredquality': '192',
+                        }],
+                        'quiet': False,
+                        'extractor_args': {
+                            'youtube': {
+                                'player_client': ['web_creator', 'mweb', 'web']
+                            }
+                        }
+                    }
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([url])
+                    log("[FALLBACK] yt-dlp succeeded with browser-extracted cookies!")
+                    return True
+                except Exception as ytdlp_err:
+                    log(f"[FALLBACK] yt-dlp retry also failed: {ytdlp_err}")
+                    return False
+
+            context.close()
+
+        # Convert downloaded stream to WAV using ffmpeg
+        if os.path.exists(temp_video) and os.path.getsize(temp_video) > 0:
+            log("[FALLBACK] Converting downloaded stream to WAV...")
+            try:
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", temp_video, "-vn", "-acodec", "pcm_s16le",
+                     "-ar", "44100", "-ac", "2", output_wav_path],
+                    check=True, capture_output=True, timeout=120
+                )
+                # Clean up temp video
+                if os.path.exists(temp_video):
+                    os.remove(temp_video)
+                
+                if os.path.exists(output_wav_path) and os.path.getsize(output_wav_path) > 0:
+                    log(f"[FALLBACK] Success! Audio saved to {output_wav_path} ({os.path.getsize(output_wav_path)} bytes)")
+                    return True
+                else:
+                    log("[FALLBACK] FFmpeg produced an empty file.")
+                    return False
+            except subprocess.CalledProcessError as ffmpeg_err:
+                log(f"[FALLBACK] FFmpeg conversion failed: {ffmpeg_err.stderr.decode()[:500]}")
+                return False
+        else:
+            log("[FALLBACK] No media file was downloaded.")
+            return False
+
+    except Exception as e:
+        log(f"[FALLBACK] Playwright download failed: {e}")
+        import traceback
+        log(f"[FALLBACK] Traceback: {traceback.format_exc()}")
+        return False
+
+
 def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
     def log(msg):
         print(msg)
@@ -400,29 +641,41 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
     except Exception as e:
         print(f"[WARNING] Metadata extraction failed: {e}")
 
+    ydl_succeeded = False
+    last_error = None
     for attempt in range(3):
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
+            ydl_succeeded = True
             break
         except Exception as e:
+            last_error = e
             err_str = str(e)
             if attempt < 2 and ("WinError 32" in err_str or "Unable to rename file" in err_str):
                 log(f"File lock detected during yt-dlp download/rename. Retrying in 5s... ({attempt + 1}/3)")
                 time.sleep(5)
             elif attempt < 2 and "Requested format is not available" in err_str:
-                # Relax format to accept literally anything downloadable
                 log(f"[RETRY] Format not available with current selector. Relaxing to 'best' on attempt {attempt + 2}/3...")
                 ydl_opts['format'] = 'best'
                 time.sleep(2)
-            elif "Sign in to confirm" in err_str or "cookies" in err_str.lower():
-                log("[ERROR] YouTube is requiring authentication. Your cookies may have been rotated.")
-                log("[ERROR] Re-export fresh cookies from an Incognito window (visit youtube.com/robots.txt, export, close immediately).")
-                raise e
+            elif "Sign in to confirm" in err_str or "cookies" in err_str.lower() or "Requested format is not available" in err_str:
+                # Bot detection or format issue — break to try Playwright fallback
+                log("[WARNING] yt-dlp blocked by YouTube bot detection. Will try Playwright fallback...")
+                break
             else:
-                raise e
+                break  # Unknown error — try Playwright fallback anyway
+
+    # If yt-dlp failed, try the Playwright browser fallback
+    wav_path = f"{audio_base}.wav"
+    if not ydl_succeeded:
+        log("[FALLBACK] yt-dlp could not download. Attempting Playwright browser-based download...")
+        pw_success = download_via_playwright(url, wav_path, log_fn=log_fn)
+        if not pw_success:
+            # Both methods failed — raise the original error
+            raise last_error or Exception("Both yt-dlp and Playwright fallback failed to download audio.")
         
-    return f"{audio_base}.wav", metadata
+    return wav_path, metadata
 
 
 def transcribe_full(audio_path: str, model_id: str = "large-v3-turbo") -> Dict:
