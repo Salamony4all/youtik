@@ -16,13 +16,8 @@ services:
       - key: PEXELS_API_KEY
         sync: false
         description: "Pexels API Key for semantic video generation assets"
-      - key: TIKTOK_USERNAME
-        sync: false
-        description: "TikTok publishing account username/email"
-      - key: TIKTOK_PASSWORD
-        sync: false
-        description: "TikTok publishing account password"
     healthCheckPath: /config
+
 
   # -------------------------------------------------------------------------
   # Vite/React Frontend Static Site Service
