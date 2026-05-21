@@ -116,6 +116,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+os.makedirs("output", exist_ok=True)
+os.makedirs("temp", exist_ok=True)
 app.mount("/output", StaticFiles(directory="output"), name="output")
 app.mount("/temp", StaticFiles(directory="temp"), name="temp")
 
