@@ -25,8 +25,9 @@ services:
   - type: web
     name: you-tik-frontend
     runtime: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
     routes:
       - type: rewrite
         source: /*
@@ -34,5 +35,8 @@ services:
     envVars:
       - key: VITE_API_BASE
         value: https://you-tik-backend.onrender.com
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
+
 
 
