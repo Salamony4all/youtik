@@ -4,8 +4,9 @@ services:
   # -------------------------------------------------------------------------
   - type: web
     name: you-tik-backend
-    env: docker
+    runtime: docker
     dockerfilePath: Dockerfile
+
     region: oregon # Render's Oregon region
     envVars:
       - key: PORT
