@@ -16,10 +16,14 @@ window.addEventListener("message", (event) => {
   if (event.source !== window) return;
 
   if (event.data && event.data.type === "YOUTIK_TRIGGER_SYNC") {
-    console.log("[You-Tik Content Script] Ingestion sync triggered. Extracting cookies...");
+    const platform = event.data.platform || "youtube";
+    console.log(`[You-Tik Content Script] Cookie sync triggered for ${platform}. Extracting cookies...`);
     
     // Send message to background service worker to fetch cookies securely
-    chrome.runtime.sendMessage({ action: "sync_youtube_cookies" }, (response) => {
+    chrome.runtime.sendMessage({ 
+      action: "sync_cookies", 
+      platform: platform 
+    }, (response) => {
       if (chrome.runtime.lastError) {
         console.error("[You-Tik Content Script] Background messaging error:", chrome.runtime.lastError);
         window.postMessage({ 
@@ -35,6 +39,7 @@ window.addEventListener("message", (event) => {
         type: "YOUTIK_SYNC_RESULT", 
         success: response.success, 
         cookies: response.cookies,
+        platform: platform,
         error: response.error 
       }, "*");
     });
