@@ -215,7 +215,7 @@ async def _run_google_login(job_id: str):
                     login_jobs[job_id]["user"] = master_data
                 else:
                     login_jobs[job_id]["status"] = "ERROR"
-                    login_jobs[job_id]["detail"] = "Headless server detected. Set the YOUTUBE_COOKIES environment variable in Render dashboard to authenticate."
+                    login_jobs[job_id]["detail"] = "Headless server detected. Set the YOUTUBE_COOKIES environment variable in Railway dashboard to authenticate."
                 return
 
             # Desktop/local — wait for the user to sign in manually

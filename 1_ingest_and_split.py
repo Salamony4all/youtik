@@ -278,7 +278,7 @@ def download_via_playwright(url: str, output_wav_path: str, log_fn=None) -> bool
 
     if not has_google_profile and not env_cookies:
         log("[FALLBACK] No Google browser profile and no YOUTUBE_COOKIES env var. Cannot authenticate.")
-        log("[FALLBACK] Set YOUTUBE_COOKIES in Render dashboard or sign in via the Publish panel locally.")
+        log("[FALLBACK] Set YOUTUBE_COOKIES in Railway dashboard or sign in via the Publish panel locally.")
         return False
 
     STEALTH_SCRIPT = """
