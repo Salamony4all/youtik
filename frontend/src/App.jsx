@@ -239,53 +239,7 @@ const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, se
                   </>
                 )}
 
-                {/* Prebuilt Sync Extension Card */}
-                <div className="mt-2.5 p-2.5 bg-purple-500/5 dark:bg-purple-500/10 rounded-xl border border-purple-500/10 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-[9px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Chrome Extension Sync</div>
-                    {window.__YOUTIK_SYNC_EXTENSION__ ? (
-                      <span className="text-[8px] font-black text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded uppercase">Connected</span>
-                    ) : (
-                      <span className="text-[8px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded uppercase">Not Loaded</span>
-                    )}
-                  </div>
-                  <div className="text-[9px] text-slate-400 dark:text-slate-500 leading-normal">
-                    Sync YouTube session cookies in 1 click to authenticate cloud downloads.
-                  </div>
-                  <div className="flex gap-1.5 flex-wrap">
-                    <input 
-                      type="file" 
-                      id="cookie-file-upload-sidebar" 
-                      accept=".json,.txt" 
-                      className="hidden" 
-                      onChange={handleCookieFileUpload} 
-                    />
-                    <button 
-                      onClick={() => document.getElementById("cookie-file-upload-sidebar").click()}
-                      className="flex-1 text-center text-[10px] font-black text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-white/5 p-1.5 rounded-lg transition-all"
-                    >
-                      📁 Upload
-                    </button>
-                    <a 
-                      href={`${API_BASE}/api/extension/download`} 
-                      className="flex-1 text-center text-[10px] font-black text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-white/5 p-1.5 rounded-lg transition-all"
-                    >
-                      📥 Get Ext
-                    </a>
-                    <button 
-                      onClick={triggerExtensionSync}
-                      disabled={syncingExtension}
-                      className="flex-2 text-[10px] font-black text-white bg-gradient-to-r from-purple-500 to-pink-500 p-1.5 rounded-lg transition-all active:scale-[0.97] hover:shadow-md hover:shadow-purple-500/10"
-                    >
-                      {syncingExtension ? "Syncing..." : "⚡ Sync"}
-                    </button>
-                  </div>
-                  {syncResultMsg && (
-                    <div className={`text-[9px] font-extrabold text-center mt-1 ${syncResultMsg.includes("successfully") ? "text-green-500" : "text-red-500 animate-pulse"}`}>
-                      {syncResultMsg}
-                    </div>
-                  )}
-                </div>
+
               </div>
 
               {/* Advanced Settings / Toggles */}
@@ -1513,55 +1467,7 @@ function App() {
                     </div>
                   )}
 
-                  {/* Prebuilt Sync Extension Card — Landing Page */}
-                  <div className="border-t border-slate-100 dark:border-white/5 bg-slate-50/30 dark:bg-white/[0.01] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <div className="text-[9px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-wider">⚡ YouTube Ingestion Sync (Chrome Extension)</div>
-                        {window.__YOUTIK_SYNC_EXTENSION__ ? (
-                          <span className="text-[8px] font-black text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded uppercase flex-shrink-0">Connected</span>
-                        ) : (
-                          <span className="text-[8px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded uppercase flex-shrink-0">Not Loaded</span>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                        To download and process videos smoothly without cloud bot verification blocks, sync your active YouTube cookies in 1 click using our prebuilt companion extension.
-                      </div>
-                    </div>
-                    <div className="flex gap-2 sm:flex-shrink-0 flex-wrap justify-end">
-                      <input 
-                        type="file" 
-                        id="cookie-file-upload-landing" 
-                        accept=".json,.txt" 
-                        className="hidden" 
-                        onChange={handleCookieFileUpload} 
-                      />
-                      <button 
-                        onClick={() => document.getElementById("cookie-file-upload-landing").click()}
-                        className="text-center text-[11px] font-black text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-4 py-2.5 rounded-xl transition-all active:scale-95"
-                      >
-                        📁 Upload Cookies
-                      </button>
-                      <a 
-                        href={`${API_BASE}/api/extension/download`} 
-                        className="text-center text-[11px] font-black text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-4 py-2.5 rounded-xl transition-all active:scale-95"
-                      >
-                        📥 Get Extension
-                      </a>
-                      <button 
-                        onClick={triggerExtensionSync}
-                        disabled={syncingExtension}
-                        className="text-[11px] font-black text-white bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 px-4 py-2.5 rounded-xl transition-all active:scale-[0.97] hover:shadow-lg hover:shadow-purple-500/15"
-                      >
-                        {syncingExtension ? "Syncing..." : "⚡ Sync YouTube Session"}
-                      </button>
-                    </div>
-                  </div>
-                  {syncResultMsg && (
-                    <div className={`text-[10px] font-black text-center pb-3 ${syncResultMsg.includes("successfully") ? "text-green-500" : "text-red-500 animate-pulse"}`}>
-                      {syncResultMsg}
-                    </div>
-                  )}
+
                 </div>
               </motion.div>
 
