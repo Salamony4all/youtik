@@ -875,6 +875,7 @@ function App() {
   const [googleLoginDetail, setGoogleLoginDetail] = useState('');
   const [syncingExtension, setSyncingExtension] = useState(false);
   const [syncResultMsg, setSyncResultMsg] = useState('');
+  const [showSyncGuideModal, setShowSyncGuideModal] = useState(false);
 
   // Sync state values to localStorage
   useEffect(() => {
@@ -994,8 +995,7 @@ function App() {
 
   const triggerExtensionSync = () => {
     if (!window.__YOUTIK_SYNC_EXTENSION__) {
-      setSyncResultMsg("Extension not detected! Download, unzip, and load it in chrome://extensions first.");
-      setTimeout(() => setSyncResultMsg(""), 8000);
+      setShowSyncGuideModal(true);
       return;
     }
     
@@ -1814,6 +1814,126 @@ function App() {
               <div className="flex-1 w-full h-full overflow-hidden">
                 <video src={`${API_BASE}${selectedVideo.url}`} controls autoPlay className="w-full h-full object-cover" />
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSyncGuideModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[250] flex items-center justify-center p-4 md:p-6 overflow-y-auto"
+          >
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setShowSyncGuideModal(false)} 
+              className="absolute inset-0 bg-black/70 backdrop-blur-[15px] transition-all duration-300" 
+            />
+
+            {/* Modal Card */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="relative w-full max-w-lg bg-white dark:bg-[#1a1a1c] rounded-3xl border border-slate-200 dark:border-white/10 p-6 md:p-8 shadow-[0_0_50px_rgba(168,85,247,0.15)] flex flex-col gap-6 max-h-[90vh] overflow-y-auto"
+            >
+              {/* Close Button */}
+              <button 
+                onClick={() => setShowSyncGuideModal(false)}
+                className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 flex items-center justify-center text-slate-500 dark:text-slate-300 transition-all cursor-pointer font-bold border-none"
+              >
+                ✕
+              </button>
+
+              {/* Title & Badge */}
+              <div className="flex flex-col gap-1 pr-6">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-500">Secure Ingestion Setup</span>
+                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-slate-800 dark:text-white">⚡ YouTube Sync Guide</h3>
+              </div>
+
+              {/* Steps Layout */}
+              <div className="flex flex-col gap-5 text-slate-600 dark:text-slate-300">
+                {/* Step 1 */}
+                <div className="flex gap-4 items-start">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-black flex-shrink-0 text-sm border border-purple-500/20">1</div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-black text-slate-800 dark:text-white mb-0.5 uppercase tracking-wide">📥 Download Sync Extension</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">Click the button below to get the official sync package. Unzip the folder to a permanent, safe location on your computer.</p>
+                    <div className="mt-2">
+                      <a 
+                        href={`${API_BASE}/api/extension/download`}
+                        className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-black text-[11px] uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer decoration-none"
+                      >
+                        📥 Download Extension ZIP
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 2 */}
+                <div className="flex gap-4 items-start">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-black flex-shrink-0 text-sm border border-purple-500/20">2</div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-black text-slate-800 dark:text-white mb-0.5 uppercase tracking-wide">🧩 Load in Developer Mode</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                      Open a new tab in Chrome/Edge, navigate to <span className="font-mono text-purple-500 select-all bg-purple-500/5 px-1.5 py-0.5 rounded">chrome://extensions</span>, toggle **Developer Mode** (top-right) to **ON**, click **"Load unpacked"** (top-left), and select the unzipped extension folder.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 3 */}
+                <div className="flex gap-4 items-start">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-black flex-shrink-0 text-sm border border-purple-500/20">3</div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-black text-slate-800 dark:text-white mb-0.5 uppercase tracking-wide">📺 Open Logged-In YouTube Tab</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                      Ensure you have an active browser tab open at <span className="font-semibold text-slate-800 dark:text-white">youtube.com</span> where you are fully logged in. The extension will grab the secure authentication token directly from this tab.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 4 */}
+                <div className="flex gap-4 items-start">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-black flex-shrink-0 text-sm border border-purple-500/20">4</div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-black text-slate-800 dark:text-white mb-0.5 uppercase tracking-wide">⚡ Trigger Sync</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                      Once loaded, return here (the extension status will switch to `CONNECTED`) and click **"Sync YouTube Session"** to securely authenticate your cloud downloads!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Alternate/Fallback File Upload option */}
+              <div className="border-t border-slate-100 dark:border-white/5 pt-4 mt-2 flex flex-col gap-2">
+                <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Alternate Method (Mobile / Safari)</span>
+                <p className="text-xs text-slate-500 leading-normal font-medium">No extension? Simply upload a standard exported cookie file directly to sync your session.</p>
+                <div className="flex gap-2">
+                  <input 
+                    type="file" 
+                    id="cookie-file-upload-modal" 
+                    accept=".json,.txt" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      handleCookieFileUpload(e);
+                      setShowSyncGuideModal(false);
+                    }} 
+                  />
+                  <button 
+                    onClick={() => document.getElementById("cookie-file-upload-modal").click()}
+                    className="w-full text-center text-xs font-black text-purple-600 hover:text-purple-700 bg-purple-500/10 hover:bg-purple-500/20 py-2.5 rounded-xl transition-all cursor-pointer border border-purple-500/15"
+                  >
+                    📁 Upload cookies.json / cookies.txt file
+                  </button>
+                </div>
+              </div>
+
             </motion.div>
           </motion.div>
         )}
