@@ -307,6 +307,7 @@ async def _publish_tiktok(
     _set_status(job_id, "LAUNCHING", "Importing tiktokautouploader…")
     try:
         import sys
+        import inspect
         # Force reload modules to pick up local changes dynamically
         for mod in list(sys.modules.keys()):
             if mod.startswith("tiktokautouploader"):
@@ -314,20 +315,39 @@ async def _publish_tiktok(
 
         from tiktokautouploader import upload_tiktok  # type: ignore
 
+        # Detect headless server environment (force headless=True on cloud servers like Railway/Docker)
+        is_headless_server = (
+            os.environ.get("RENDER") is not None
+            or os.environ.get("DISPLAY") is None
+            or os.environ.get("DOCKER_CONTAINER") is not None
+            or os.environ.get("RAILWAY_ENVIRONMENT") is not None
+        )
+        if is_headless_server:
+            headless = True
+
         _set_status(job_id, "UPLOADING", "Browser opening for TikTok upload…")
+
+        # Inspect signature to resolve dynamic kwargs (safely handles package version differences)
+        sig = inspect.signature(upload_tiktok)
+        kwargs = {
+            "video": video_path,
+            "description": caption,
+            "accountname": account if account != "default" else "",
+        }
+        if "hashtags" in sig.parameters:
+            kwargs["hashtags"] = hashtags or []
+        if "headless" in sig.parameters:
+            kwargs["headless"] = headless
+        if "save_as_draft" in sig.parameters:
+            kwargs["save_as_draft"] = save_as_draft
+        elif "draft" in sig.parameters:
+            kwargs["draft"] = save_as_draft
 
         # tiktokautouploader is synchronous – run in a thread
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
             None,
-            lambda: upload_tiktok(
-                video=video_path,
-                description=caption,
-                accountname=account if account != "default" else "",
-                hashtags=hashtags or [],
-                headless=headless,
-                save_as_draft=save_as_draft,
-            ),
+            lambda: upload_tiktok(**kwargs),
         )
 
         # Mark cookie directory as existing (the package manages its own cookies)
@@ -379,6 +399,16 @@ async def _publish_playwright(
         return
 
     try:
+        # Detect headless server environment (force headless=True on cloud servers like Railway/Docker)
+        is_headless_server = (
+            os.environ.get("RENDER") is not None
+            or os.environ.get("DISPLAY") is None
+            or os.environ.get("DOCKER_CONTAINER") is not None
+            or os.environ.get("RAILWAY_ENVIRONMENT") is not None
+        )
+        if is_headless_server:
+            headless = True
+
         async with async_playwright() as pw:
             # Reuse the same persistent browser profile that was used during login
             context = await pw.chromium.launch_persistent_context(
