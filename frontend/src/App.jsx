@@ -238,6 +238,41 @@ const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, se
                     )}
                   </>
                 )}
+
+                {/* Prebuilt Sync Extension Card */}
+                <div className="mt-2.5 p-2.5 bg-purple-500/5 dark:bg-purple-500/10 rounded-xl border border-purple-500/10 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[9px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Chrome Extension Sync</div>
+                    {window.__YOUTIK_SYNC_EXTENSION__ ? (
+                      <span className="text-[8px] font-black text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded uppercase">Connected</span>
+                    ) : (
+                      <span className="text-[8px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded uppercase">Not Loaded</span>
+                    )}
+                  </div>
+                  <div className="text-[9px] text-slate-400 dark:text-slate-500 leading-normal">
+                    Sync YouTube session cookies in 1 click to authenticate cloud downloads.
+                  </div>
+                  <div className="flex gap-2">
+                    <a 
+                      href={`${API_BASE}/api/extension/download`} 
+                      className="flex-1 text-center text-[10px] font-black text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-white/5 p-1.5 rounded-lg transition-all"
+                    >
+                      📥 Get Extension
+                    </a>
+                    <button 
+                      onClick={triggerExtensionSync}
+                      disabled={syncingExtension}
+                      className="flex-1 text-[10px] font-black text-white bg-gradient-to-r from-purple-500 to-pink-500 p-1.5 rounded-lg transition-all active:scale-[0.97] hover:shadow-md hover:shadow-purple-500/10"
+                    >
+                      {syncingExtension ? "Syncing..." : "⚡ Sync Session"}
+                    </button>
+                  </div>
+                  {syncResultMsg && (
+                    <div className={`text-[9px] font-extrabold text-center mt-1 ${syncResultMsg.includes("successfully") ? "text-green-500" : "text-red-500 animate-pulse"}`}>
+                      {syncResultMsg}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Advanced Settings / Toggles */}
@@ -825,6 +860,8 @@ function App() {
   const [googleUser, setGoogleUser] = useState(null);
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const [googleLoginDetail, setGoogleLoginDetail] = useState('');
+  const [syncingExtension, setSyncingExtension] = useState(false);
+  const [syncResultMsg, setSyncResultMsg] = useState('');
 
   // Sync state values to localStorage
   useEffect(() => {
@@ -940,6 +977,60 @@ function App() {
       setGoogleLoginDetail('Failed to start login');
       setTimeout(() => setGoogleLoginDetail(''), 5000);
     }
+  };
+
+  const triggerExtensionSync = () => {
+    if (!window.__YOUTIK_SYNC_EXTENSION__) {
+      setSyncResultMsg("Extension not detected! Download, unzip, and load it in chrome://extensions first.");
+      setTimeout(() => setSyncResultMsg(""), 8000);
+      return;
+    }
+    
+    setSyncingExtension(true);
+    setSyncResultMsg("Requesting YouTube session cookies...");
+    
+    const handleSyncResponse = async (event) => {
+      if (event.source !== window || !event.data || event.data.type !== "YOUTIK_SYNC_RESULT") return;
+      
+      window.removeEventListener("message", handleSyncResponse);
+      
+      const { success, cookies, error } = event.data;
+      if (!success) {
+        setSyncResultMsg(`Sync failed: ${error || "Verify you are signed into YouTube!"}`);
+        setSyncingExtension(false);
+        setTimeout(() => setSyncResultMsg(""), 8000);
+        return;
+      }
+      
+      try {
+        setSyncResultMsg("Syncing session with cloud backend...");
+        const res = await axios.post(`${API_BASE}/auth/youtube/cookies`, {
+          cookies: cookies
+        });
+        
+        if (res.data && res.data.status === "success") {
+          setSyncResultMsg("🎉 YouTube session successfully synced!");
+          // Fetch synced google user info to update UI
+          const userRes = await axios.get(`${API_BASE}/auth/google/user`);
+          if (userRes.data) {
+            setGoogleUser(userRes.data);
+          }
+        } else {
+          setSyncResultMsg("Cloud rejected cookies session.");
+        }
+      } catch (err) {
+        console.error("Backend cookies sync failed", err);
+        setSyncResultMsg("Sync failed: Backend connection error.");
+      } finally {
+        setSyncingExtension(false);
+        setTimeout(() => setSyncResultMsg(""), 8000);
+      }
+    };
+    
+    window.addEventListener("message", handleSyncResponse);
+    
+    // Trigger Content Script injection message
+    window.postMessage({ type: "YOUTIK_TRIGGER_SYNC" }, "*");
   };
 
   const handleGoogleSignOut = async () => {

@@ -571,6 +571,63 @@ async def logout_google():
     return {"status": "success", "message": "Logged out successfully. Browser session and platform data cleared."}
 
 
+class CookieSyncRequest(BaseModel):
+    cookies: str
+
+
+@app.post("/auth/youtube/cookies")
+async def sync_youtube_cookies(req: CookieSyncRequest):
+    """Saves YouTube cookies synced from the user's browser extension."""
+    try:
+        # Write the cookies directly into standard cookie_file
+        # This will be automatically picked up by 1_ingest_and_split.py
+        cookie_path = "youtube_cookies.txt"
+        with open(cookie_path, "w", encoding="utf-8") as f:
+            f.write(req.cookies)
+            
+        # Update google_master.json synthetic authentication state
+        master_data = {
+            "name": "Sync Extension Session",
+            "email": "Authenticated via Chrome Extension Sync",
+            "picture": "",
+            "authenticated_at": time.time(),
+            "auth_method": "extension_sync",
+        }
+        master_profile_path = publisher.SESSIONS_DIR / "google_master.json"
+        master_profile_path.write_text(json.dumps(master_data, indent=2))
+        
+        return {"status": "success", "message": "YouTube session successfully synced!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to sync cookies: {str(e)}")
+
+
+@app.get("/api/extension/download")
+async def download_sync_extension():
+    """Generates and serves a ZIP archive of the pre-built Chrome Extension."""
+    import zipfile
+    import io
+    from fastapi.responses import StreamingResponse
+    
+    extension_dir = "you-tik-sync-extension"
+    if not os.path.exists(extension_dir):
+        raise HTTPException(status_code=404, detail="Extension directory not found.")
+        
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for root, _, files in os.walk(extension_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                archive_name = os.path.relpath(file_path, extension_dir)
+                zip_file.write(file_path, archive_name)
+                
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=you-tik-sync-extension.zip"}
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
