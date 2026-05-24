@@ -344,6 +344,29 @@ async def _publish_tiktok(
         elif "draft" in sig.parameters:
             kwargs["draft"] = save_as_draft
 
+        # Ensure TK_cookies files exist to prevent rename error on cloud servers
+        cookie_file_name = f"TK_cookies_{account}.json" if account != "default" else "TK_cookies.json"
+        tiktok_cookies_env = os.environ.get("TIKTOK_COOKIES")
+        if tiktok_cookies_env:
+            try:
+                # Validate JSON then write it
+                json.loads(tiktok_cookies_env)
+                with open(cookie_file_name, "w") as f:
+                    f.write(tiktok_cookies_env)
+                with open("TK_cookies.json", "w") as f:
+                    f.write(tiktok_cookies_env)
+            except Exception as e:
+                print("Failed to parse TIKTOK_COOKIES env var:", e)
+        else:
+            # Create empty fallback to prevent os.rename crash
+            for fname in [cookie_file_name, "TK_cookies.json"]:
+                if not os.path.exists(fname):
+                    try:
+                        with open(fname, "w") as f:
+                            f.write("[]")
+                    except Exception:
+                        pass
+
         # tiktokautouploader is synchronous – run in a thread
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
@@ -424,6 +447,14 @@ async def _publish_playwright(
                 viewport={"width": 1280, "height": 720},
                 locale="en-US",
             )
+
+            # Inject cookies if they exist in environment (for headless cloud)
+            if is_headless_server and os.environ.get(f"{platform.upper()}_COOKIES"):
+                try:
+                    cookies = json.loads(os.environ.get(f"{platform.upper()}_COOKIES"))
+                    await context.add_cookies(cookies)
+                except Exception as e:
+                    print(f"Failed to inject {platform.upper()}_COOKIES:", e)
 
             await context.add_init_script(_STEALTH_SCRIPT)
 
