@@ -513,6 +513,9 @@ def download_via_playwright(url: str, output_wav_path: str, log_fn=None) -> bool
                             'youtube': {
                                 'player_client': ['web_creator', 'mweb', 'web']
                             }
+                        },
+                        'external_downloader_args': {
+                            'ffmpeg_i': ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5']
                         }
                     }
                     proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
@@ -659,6 +662,9 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
             'youtube': {
                 'player_client': player_clients
             }
+        },
+        'external_downloader_args': {
+            'ffmpeg_i': ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5']
         }
     }
     
