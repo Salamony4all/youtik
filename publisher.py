@@ -135,6 +135,7 @@ async def _run_google_login(job_id: str):
         os.environ.get("RENDER") is not None
         or os.environ.get("DISPLAY") is None
         or os.environ.get("DOCKER_CONTAINER") is not None
+        or os.environ.get("RAILWAY_ENVIRONMENT") is not None
     )
 
     try:
