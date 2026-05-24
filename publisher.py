@@ -295,6 +295,38 @@ def start_google_login_job() -> str:
 # Platform uploaders
 # ---------------------------------------------------------------------------
 
+def _is_tiktok_cookies_valid(account: str) -> bool:
+    """Check if TikTok cookies file exists and is not expired."""
+    cookie_file = Path(f"TK_cookies_{account}.json")
+    if not cookie_file.is_file():
+        # Fallback to standard TK_cookies.json if it exists and account is default
+        if account == "default" and Path("TK_cookies.json").is_file():
+            cookie_file = Path("TK_cookies.json")
+        else:
+            return False
+            
+    try:
+        cookies = json.loads(cookie_file.read_text(encoding="utf-8"))
+        if not isinstance(cookies, list) or len(cookies) == 0:
+            return False
+        
+        current_time = int(time.time())
+        cookies_expire = []
+        for cookie in cookies:
+            if cookie.get("name") in ["sessionid", "sid_tt", "sessionid_ss", "passport_auth_status"]:
+                expiry = cookie.get("expires")
+                if not expiry:
+                    expiry = cookie.get("expirationDate")
+                if expiry:
+                    cookies_expire.append(expiry < current_time)
+                    
+        if cookies_expire and all(cookies_expire):
+            return False
+        return True
+    except Exception:
+        return False
+
+
 async def _publish_tiktok(
     job_id: str,
     video_path: str,
@@ -326,6 +358,29 @@ async def _publish_tiktok(
         if is_headless_server:
             headless = True
 
+        # Prepare the cookie files from env if provided
+        tiktok_cookies_env = os.environ.get("TIKTOK_COOKIES")
+        if tiktok_cookies_env:
+            try:
+                # Validate JSON then write it
+                json.loads(tiktok_cookies_env)
+                # Write to all standard expected paths
+                for name in ["TK_cookies.json", f"TK_cookies_{account}.json", "TK_cookies_default.json"]:
+                    with open(name, "w", encoding="utf-8") as f:
+                        f.write(tiktok_cookies_env)
+            except Exception as e:
+                print("Failed to parse TIKTOK_COOKIES env var:", e)
+
+        # Check if we have valid cookies on headless server
+        if is_headless_server:
+            if not _is_tiktok_cookies_valid(account):
+                _set_status(
+                    job_id,
+                    "ERROR",
+                    "TikTok cookies are missing or have expired. Please log in locally to extract fresh cookies and update the TIKTOK_COOKIES environment variable in your Railway dashboard."
+                )
+                return
+
         _set_status(job_id, "UPLOADING", "Browser opening for TikTok upload…")
 
         # Inspect signature to resolve dynamic kwargs (safely handles package version differences)
@@ -333,7 +388,7 @@ async def _publish_tiktok(
         kwargs = {
             "video": video_path,
             "description": caption,
-            "accountname": account if account != "default" else "",
+            "accountname": account,
         }
         if "hashtags" in sig.parameters:
             kwargs["hashtags"] = hashtags or []
@@ -343,29 +398,6 @@ async def _publish_tiktok(
             kwargs["save_as_draft"] = save_as_draft
         elif "draft" in sig.parameters:
             kwargs["draft"] = save_as_draft
-
-        # Ensure TK_cookies files exist to prevent rename error on cloud servers
-        cookie_file_name = f"TK_cookies_{account}.json" if account != "default" else "TK_cookies.json"
-        tiktok_cookies_env = os.environ.get("TIKTOK_COOKIES")
-        if tiktok_cookies_env:
-            try:
-                # Validate JSON then write it
-                json.loads(tiktok_cookies_env)
-                with open(cookie_file_name, "w") as f:
-                    f.write(tiktok_cookies_env)
-                with open("TK_cookies.json", "w") as f:
-                    f.write(tiktok_cookies_env)
-            except Exception as e:
-                print("Failed to parse TIKTOK_COOKIES env var:", e)
-        else:
-            # Create empty fallback to prevent os.rename crash
-            for fname in [cookie_file_name, "TK_cookies.json"]:
-                if not os.path.exists(fname):
-                    try:
-                        with open(fname, "w") as f:
-                            f.write("[]")
-                    except Exception:
-                        pass
 
         # tiktokautouploader is synchronous – run in a thread
         loop = asyncio.get_running_loop()
@@ -413,15 +445,6 @@ async def _publish_playwright(
         )
         return
 
-    profile_dir = str(GOOGLE_PROFILE_DIR)
-    if not os.path.exists(profile_dir) or not any(os.scandir(profile_dir)):
-        _set_status(
-            job_id,
-            "ERROR",
-            "Not signed in. Please sign in with Google first using the Publish panel.",
-        )
-        return
-
     try:
         # Detect headless server environment (force headless=True on cloud servers like Railway/Docker)
         is_headless_server = (
@@ -432,6 +455,19 @@ async def _publish_playwright(
         )
         if is_headless_server:
             headless = True
+
+        profile_dir = str(GOOGLE_PROFILE_DIR)
+        has_profile = os.path.exists(profile_dir) and any(os.scandir(profile_dir))
+        has_env_cookies = bool(os.environ.get(f"{platform.upper()}_COOKIES"))
+
+        if not has_profile and not (is_headless_server and has_env_cookies):
+            _set_status(
+                job_id,
+                "ERROR",
+                f"Not signed in. Please sign in with {PLATFORMS.get(platform, {}).get('name', platform)} first. "
+                f"If running on a cloud server, make sure to configure the {platform.upper()}_COOKIES environment variable in your Railway dashboard."
+            )
+            return
 
         async with async_playwright() as pw:
             # Reuse the same persistent browser profile that was used during login
@@ -507,6 +543,9 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
 
     # Check if logged in
     if "accounts.google.com" in page.url:
+        if headless:
+            raise Exception("YouTube session has expired or is invalid. Please log in locally, sync fresh cookies, and update the YOUTUBE_COOKIES environment variable in your Railway dashboard.")
+            
         _set_status(
             job_id,
             "WAITING_LOGIN",
@@ -517,6 +556,9 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
             await page.wait_for_timeout(1000)
             if "studio.youtube.com" in page.url:
                 break
+
+        if "accounts.google.com" in page.url:
+            raise Exception("Google sign-in timed out or was not completed.")
 
     _set_status(job_id, "UPLOADING", "Uploading video to YouTube Shorts…")
 
@@ -621,6 +663,9 @@ async def _upload_instagram(job_id, page, video_path, caption, headless=False):
     await page.wait_for_timeout(3000)
 
     if "login" in page.url.lower():
+        if headless:
+            raise Exception("Instagram session has expired or is invalid. Please update the INSTAGRAM_COOKIES environment variable in your Railway dashboard.")
+            
         _set_status(
             job_id,
             "WAITING_LOGIN",
@@ -630,6 +675,9 @@ async def _upload_instagram(job_id, page, video_path, caption, headless=False):
             await page.wait_for_timeout(1000)
             if "login" not in page.url.lower():
                 break
+
+        if "login" in page.url.lower():
+            raise Exception("Instagram sign-in timed out or was not completed.")
 
     _set_status(job_id, "UPLOADING", "Creating new Reel on Instagram…")
 
@@ -659,6 +707,9 @@ async def _upload_twitter(job_id, page, video_path, caption, headless=False):
     await page.wait_for_timeout(3000)
 
     if "login" in page.url.lower() or "flow" in page.url.lower():
+        if headless:
+            raise Exception("X/Twitter session has expired or is invalid. Please update the TWITTER_COOKIES environment variable in your Railway dashboard.")
+            
         _set_status(
             job_id,
             "WAITING_LOGIN",
@@ -668,6 +719,9 @@ async def _upload_twitter(job_id, page, video_path, caption, headless=False):
             await page.wait_for_timeout(1000)
             if "compose" in page.url.lower() or "home" in page.url.lower():
                 break
+
+        if "login" in page.url.lower() or "flow" in page.url.lower():
+            raise Exception("X/Twitter sign-in timed out or was not completed.")
 
     _set_status(job_id, "UPLOADING", "Composing post with video…")
 
