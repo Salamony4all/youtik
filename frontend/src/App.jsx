@@ -876,6 +876,7 @@ function App() {
   const [syncingExtension, setSyncingExtension] = useState(false);
   const [syncResultMsg, setSyncResultMsg] = useState('');
   const [showSyncGuideModal, setShowSyncGuideModal] = useState(false);
+  const [pastedCookies, setPastedCookies] = useState("");
 
   // Sync state values to localStorage
   useEffect(() => {
@@ -1081,6 +1082,38 @@ function App() {
       }
     };
     reader.readAsText(file);
+  };
+
+  const handlePastedCookiesSync = async () => {
+    if (!pastedCookies.trim()) return;
+    
+    setSyncingExtension(true);
+    setSyncResultMsg("Syncing pasted cookies with cloud backend...");
+    
+    try {
+      const res = await axios.post(`${API_BASE}/auth/youtube/cookies`, {
+        cookies: pastedCookies
+      });
+      
+      if (res.data && res.data.status === "success") {
+        setSyncResultMsg("🎉 Cookies successfully synced from paste!");
+        setPastedCookies("");
+        setShowSyncGuideModal(false);
+        // Fetch synced google user info to update UI
+        const userRes = await axios.get(`${API_BASE}/auth/google/user`);
+        if (userRes.data) {
+          setGoogleUser(userRes.data);
+        }
+      } else {
+        setSyncResultMsg("Cloud rejected pasted cookies.");
+      }
+    } catch (err) {
+      console.error("Pasted cookies sync failed", err);
+      setSyncResultMsg("Sync failed: Backend connection error.");
+    } finally {
+      setSyncingExtension(false);
+      setTimeout(() => setSyncResultMsg(""), 8000);
+    }
   };
 
   const handleGoogleSignOut = async () => {
@@ -1910,10 +1943,18 @@ function App() {
                 </div>
               </div>
 
-              {/* Alternate/Fallback File Upload option */}
-              <div className="border-t border-slate-100 dark:border-white/5 pt-4 mt-2 flex flex-col gap-2">
-                <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Alternate Method (Mobile / Safari)</span>
-                <p className="text-xs text-slate-500 leading-normal font-medium">No extension? Simply upload a standard exported cookie file directly to sync your session.</p>
+              {/* Alternate/Fallback Paste & Upload option */}
+              <div className="border-t border-slate-100 dark:border-white/5 pt-4 mt-2 flex flex-col gap-3">
+                <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">⚡ One-Click Direct Paste (Fastest)</span>
+                <p className="text-xs text-slate-500 leading-normal font-medium">
+                  Export cookies on your YouTube tab (using extensions like <em>Get cookies.txt LOCALLY</em>), copy, and paste the raw content below:
+                </p>
+                <textarea
+                  placeholder="Paste your copied cookies.txt or JSON cookie data here..."
+                  className="w-full text-xs font-mono p-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/20 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-purple-500 max-h-[80px] min-h-[60px]"
+                  value={pastedCookies}
+                  onChange={(e) => setPastedCookies(e.target.value)}
+                />
                 <div className="flex gap-2">
                   <input 
                     type="file" 
@@ -1926,10 +1967,19 @@ function App() {
                     }} 
                   />
                   <button 
+                    type="button"
                     onClick={() => document.getElementById("cookie-file-upload-modal").click()}
-                    className="w-full text-center text-xs font-black text-purple-600 hover:text-purple-700 bg-purple-500/10 hover:bg-purple-500/20 py-2.5 rounded-xl transition-all cursor-pointer border border-purple-500/15"
+                    className="flex-1 text-center text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-white/5 py-2.5 rounded-xl transition-all cursor-pointer border-none"
                   >
-                    📁 Upload cookies.json / cookies.txt file
+                    📁 Upload File
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handlePastedCookiesSync}
+                    disabled={!pastedCookies.trim() || syncingExtension}
+                    className="flex-[2] text-center text-xs font-black text-white bg-gradient-to-r from-purple-500 to-pink-500 py-2.5 rounded-xl transition-all cursor-pointer shadow-md hover:shadow-purple-500/10 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none border-none"
+                  >
+                    ⚡ Sync Pasted Cookies
                   </button>
                 </div>
               </div>

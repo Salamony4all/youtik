@@ -312,31 +312,55 @@ def download_via_playwright(url: str, output_wav_path: str, log_fn=None) -> bool
 
             if has_google_profile:
                 log("[FALLBACK] Launching Chromium with Google profile...")
-                context = pw.chromium.launch_persistent_context(
-                    user_data_dir=GOOGLE_PROFILE_DIR,
-                    headless=True,
-                    args=[
+                launch_kwargs = {
+                    "user_data_dir": GOOGLE_PROFILE_DIR,
+                    "headless": True,
+                    "args": [
                         "--disable-blink-features=AutomationControlled",
                         "--no-sandbox",
                         "--disable-infobars",
                         "--disable-dev-shm-usage",
                         "--disable-gpu",
                     ],
-                    viewport={"width": 1280, "height": 720},
-                    locale="en-US",
-                )
+                    "viewport": {"width": 1280, "height": 720},
+                    "locale": "en-US",
+                }
+                proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
+                if proxy_url:
+                    import urllib.parse
+                    parsed = urllib.parse.urlparse(proxy_url)
+                    server_address = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}" if parsed.port else f"{parsed.scheme}://{parsed.hostname}"
+                    pw_proxy = {"server": server_address}
+                    if parsed.username and parsed.password:
+                        pw_proxy["username"] = parsed.username
+                        pw_proxy["password"] = parsed.password
+                    launch_kwargs["proxy"] = pw_proxy
+                    log(f"[FALLBACK] Injecting proxy into Playwright: {server_address}")
+                context = pw.chromium.launch_persistent_context(**launch_kwargs)
             else:
                 log("[FALLBACK] No Google profile. Launching Chromium with YOUTUBE_COOKIES...")
-                browser = pw.chromium.launch(
-                    headless=True,
-                    args=[
+                launch_kwargs = {
+                    "headless": True,
+                    "args": [
                         "--disable-blink-features=AutomationControlled",
                         "--no-sandbox",
                         "--disable-infobars",
                         "--disable-dev-shm-usage",
                         "--disable-gpu",
                     ],
-                )
+                }
+                proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
+                if proxy_url:
+                    import urllib.parse
+                    parsed = urllib.parse.urlparse(proxy_url)
+                    server_address = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}" if parsed.port else f"{parsed.scheme}://{parsed.hostname}"
+                    pw_proxy = {"server": server_address}
+                    if parsed.username and parsed.password:
+                        pw_proxy["username"] = parsed.username
+                        pw_proxy["password"] = parsed.password
+                    launch_kwargs["proxy"] = pw_proxy
+                    log(f"[FALLBACK] Injecting proxy into Playwright: {server_address}")
+                browser = pw.chromium.launch(**launch_kwargs)
                 context = browser.new_context(
                     viewport={"width": 1280, "height": 720},
                     locale="en-US",
@@ -491,6 +515,10 @@ def download_via_playwright(url: str, output_wav_path: str, log_fn=None) -> bool
                             }
                         }
                     }
+                    proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
+                    if proxy_url:
+                        ydl_opts['proxy'] = proxy_url
+                        log(f"[FALLBACK] Injecting proxy into retry yt-dlp: {proxy_url}")
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         ydl.download([url])
                     log("[FALLBACK] yt-dlp succeeded with browser-extracted cookies!")
@@ -633,6 +661,11 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
             }
         }
     }
+    
+    proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
+    if proxy_url:
+        ydl_opts['proxy'] = proxy_url
+        log(f"[INGEST] Injecting proxy into yt-dlp: {proxy_url}")
     
     if cookie_file:
         ydl_opts['cookiefile'] = cookie_file
