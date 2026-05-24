@@ -38,5 +38,5 @@ RUN python pre_download_models.py
 # Expose backend port
 EXPOSE 8000
 
-# Start FastAPI server using Uvicorn
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start FastAPI server using Uvicorn (respecting the platform-provided PORT env var)
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}"]

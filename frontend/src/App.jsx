@@ -8,9 +8,9 @@ const getApiBase = () => {
   if (import.meta.env.VITE_API_BASE) {
     return import.meta.env.VITE_API_BASE;
   }
-  // Robust dynamic fallback for Render hosting environments
+  // Robust dynamic fallback for Render and Railway hosting environments
   const host = window.location.hostname;
-  if (host.includes("onrender.com")) {
+  if (host.includes("onrender.com") || host.includes(".up.railway.app")) {
     if (host.includes("-frontend")) {
       return `https://${host.replace("-frontend", "-backend")}`;
     }
