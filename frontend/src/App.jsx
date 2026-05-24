@@ -252,19 +252,32 @@ const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, se
                   <div className="text-[9px] text-slate-400 dark:text-slate-500 leading-normal">
                     Sync YouTube session cookies in 1 click to authenticate cloud downloads.
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5 flex-wrap">
+                    <input 
+                      type="file" 
+                      id="cookie-file-upload-sidebar" 
+                      accept=".json,.txt" 
+                      className="hidden" 
+                      onChange={handleCookieFileUpload} 
+                    />
+                    <button 
+                      onClick={() => document.getElementById("cookie-file-upload-sidebar").click()}
+                      className="flex-1 text-center text-[10px] font-black text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-white/5 p-1.5 rounded-lg transition-all"
+                    >
+                      📁 Upload
+                    </button>
                     <a 
                       href={`${API_BASE}/api/extension/download`} 
                       className="flex-1 text-center text-[10px] font-black text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-white/5 p-1.5 rounded-lg transition-all"
                     >
-                      📥 Get Extension
+                      📥 Get Ext
                     </a>
                     <button 
                       onClick={triggerExtensionSync}
                       disabled={syncingExtension}
-                      className="flex-1 text-[10px] font-black text-white bg-gradient-to-r from-purple-500 to-pink-500 p-1.5 rounded-lg transition-all active:scale-[0.97] hover:shadow-md hover:shadow-purple-500/10"
+                      className="flex-2 text-[10px] font-black text-white bg-gradient-to-r from-purple-500 to-pink-500 p-1.5 rounded-lg transition-all active:scale-[0.97] hover:shadow-md hover:shadow-purple-500/10"
                     >
-                      {syncingExtension ? "Syncing..." : "⚡ Sync Session"}
+                      {syncingExtension ? "Syncing..." : "⚡ Sync"}
                     </button>
                   </div>
                   {syncResultMsg && (
@@ -1033,6 +1046,43 @@ function App() {
     window.postMessage({ type: "YOUTIK_TRIGGER_SYNC" }, "*");
   };
 
+  const handleCookieFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    setSyncingExtension(true);
+    setSyncResultMsg("Reading cookie file...");
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const content = e.target.result;
+      try {
+        setSyncResultMsg("Syncing uploaded cookies with cloud backend...");
+        const res = await axios.post(`${API_BASE}/auth/youtube/cookies`, {
+          cookies: content
+        });
+        
+        if (res.data && res.data.status === "success") {
+          setSyncResultMsg("🎉 Cookies successfully synced from file!");
+          // Fetch synced google user info to update UI
+          const userRes = await axios.get(`${API_BASE}/auth/google/user`);
+          if (userRes.data) {
+            setGoogleUser(userRes.data);
+          }
+        } else {
+          setSyncResultMsg("Cloud rejected uploaded cookies.");
+        }
+      } catch (err) {
+        console.error("Cookie file upload failed", err);
+        setSyncResultMsg("Sync failed: Backend connection error.");
+      } finally {
+        setSyncingExtension(false);
+        setTimeout(() => setSyncResultMsg(""), 8000);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleGoogleSignOut = async () => {
     try {
       await axios.post(`${API_BASE}/auth/google/logout`);
@@ -1445,7 +1495,20 @@ function App() {
                         To download and process videos smoothly without cloud bot verification blocks, sync your active YouTube cookies in 1 click using our prebuilt companion extension.
                       </div>
                     </div>
-                    <div className="flex gap-2 sm:flex-shrink-0">
+                    <div className="flex gap-2 sm:flex-shrink-0 flex-wrap justify-end">
+                      <input 
+                        type="file" 
+                        id="cookie-file-upload-landing" 
+                        accept=".json,.txt" 
+                        className="hidden" 
+                        onChange={handleCookieFileUpload} 
+                      />
+                      <button 
+                        onClick={() => document.getElementById("cookie-file-upload-landing").click()}
+                        className="text-center text-[11px] font-black text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-4 py-2.5 rounded-xl transition-all active:scale-95"
+                      >
+                        📁 Upload Cookies
+                      </button>
                       <a 
                         href={`${API_BASE}/api/extension/download`} 
                         className="text-center text-[11px] font-black text-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 px-4 py-2.5 rounded-xl transition-all active:scale-95"
