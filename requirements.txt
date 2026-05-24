@@ -32,7 +32,7 @@ ffmpeg-python==0.2.0
 
 # Publishing
 playwright==1.60.0
-tiktokautouploader @ git+https://github.com/haziq-exe/TikTokAutoUploader.git
+tiktokautouploader==6.0
 inference==1.2.7
 
 # TTS Engine
