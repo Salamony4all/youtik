@@ -137,6 +137,7 @@ class IngestRequest(BaseModel):
     tts_engine: Optional[str] = None
     tts_voice: Optional[str] = "M1"
     target_duration: int = 30
+    custom_cookies: Optional[str] = None
 
 
 class PublishRequest(BaseModel):
@@ -250,7 +251,7 @@ def run_pipeline(session_id: str, request: IngestRequest):
         sessions[session_id]["status"] = "INGESTION"
         add_log("[INGEST] Starting media download...")
         m1 = importlib.import_module("1_ingest_and_split")
-        audio_file, metadata = m1.run_ingest_step(request.url, temp_dir, log_fn=add_log)
+        audio_file, metadata = m1.run_ingest_step(request.url, temp_dir, log_fn=add_log, custom_cookies=request.custom_cookies)
         sessions[session_id]["data"]["audio_file"] = audio_file
         
         if not request.song_name and metadata.get("song_name"):

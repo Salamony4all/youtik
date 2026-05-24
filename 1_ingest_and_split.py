@@ -2,7 +2,7 @@ import os
 import yt_dlp
 import json
 import torch
-from typing import Dict
+from typing import Dict, Optional
 import gc
 import shutil
 import time
@@ -534,7 +534,7 @@ def download_via_playwright(url: str, output_wav_path: str, log_fn=None) -> bool
         return False
 
 
-def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
+def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Optional[str] = None) -> tuple:
     def log(msg):
         print(msg)
         if log_fn:
@@ -546,6 +546,12 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None) -> tuple:
     # Locate best cookie source and content
     cookie_source = None
     raw_cookie_content = None
+    
+    # 0. Check request-provided custom cookies (Highest priority)
+    if custom_cookies:
+        raw_cookie_content = custom_cookies
+        cookie_source = "request-provided custom cookies"
+        log("[INGEST] Using custom cookies provided directly in the request.")
     
     # 1. Check root cookies files
     for root_cookie in ["youtube_cookies.txt", "cookies.txt"]:
