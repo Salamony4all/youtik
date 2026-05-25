@@ -840,6 +840,34 @@ function App() {
   const [pastedCookies, setPastedCookies] = useState("");
   const [extensionActive, setExtensionActive] = useState(false);
 
+  // Direct Landing Page Cookies State
+  const [directPastedCookies, setDirectPastedCookies] = useState("");
+  const [directSyncing, setDirectSyncing] = useState(false);
+  const [directSyncResultMsg, setDirectSyncResultMsg] = useState("");
+
+  const handleDirectCookiesSync = async () => {
+    if (!directPastedCookies.trim()) return;
+    setDirectSyncing(true);
+    setDirectSyncResultMsg("Syncing YouTube cookies...");
+    try {
+      const res = await axios.post(`${API_BASE}/auth/youtube/cookies`, {
+        cookies: directPastedCookies
+      });
+      if (res.data && res.data.status === "success") {
+        setDirectSyncResultMsg("🎉 YouTube cookies successfully synced to backend!");
+        setDirectPastedCookies("");
+      } else {
+        setDirectSyncResultMsg("❌ Cloud rejected cookies.");
+      }
+    } catch (err) {
+      console.error(err);
+      setDirectSyncResultMsg("❌ Sync failed: Connection error.");
+    } finally {
+      setDirectSyncing(false);
+      setTimeout(() => setDirectSyncResultMsg(""), 8000);
+    }
+  };
+
   // Check if extension is active while modal is open (fast polling)
   useEffect(() => {
     if (!showSyncGuideModal) return;
@@ -1545,6 +1573,53 @@ function App() {
                   )}
 
 
+                </div>
+              </motion.div>
+
+              {/* YouTube Cookies Sync Input Card */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="max-w-3xl mx-auto mt-4">
+                <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-white/[0.03] p-6 space-y-4 hover:border-purple-500/30 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 font-black">
+                      ⚡
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-900 dark:text-white">🔑 YouTube Ingestion Cookies</h4>
+                      <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">Bypass 403 Forbidden & Bot detection blocks on Railway</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <textarea
+                      placeholder="Paste your exported YouTube cookies.txt or JSON data here to sync directly..."
+                      className="w-full text-xs font-mono p-4 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/40 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500 max-h-[120px] min-h-[80px] custom-scrollbar placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                      value={directPastedCookies}
+                      onChange={(e) => setDirectPastedCookies(e.target.value)}
+                    />
+                    
+                    <div className="flex items-center justify-between gap-4">
+                      {directSyncResultMsg ? (
+                        <span className={`text-xs font-bold leading-normal truncate ${
+                          directSyncResultMsg.includes("🎉") ? "text-emerald-500" : "text-rose-500"
+                        }`}>
+                          {directSyncResultMsg}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                          JSON format is recommended (from EditThisCookie or similar extensions).
+                        </span>
+                      )}
+                      
+                      <button
+                        type="button"
+                        onClick={handleDirectCookiesSync}
+                        disabled={!directPastedCookies.trim() || directSyncing}
+                        className="text-center text-xs font-black text-white bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-2.5 rounded-xl transition-all cursor-pointer shadow-md hover:shadow-purple-500/10 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none border-none uppercase tracking-wider shrink-0"
+                      >
+                        {directSyncing ? "Syncing..." : "Sync Cookies"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
 
