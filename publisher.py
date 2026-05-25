@@ -326,6 +326,18 @@ async def _run_google_login(job_id: str):
                 print(f"[VNC] Failed to start virtual display for login: {e}")
                 login_jobs[job_id]["vnc_active"] = False
 
+        # Clean up existing locks if container crashed previously
+        for lock_file in ["SingletonLock", "SingletonCookie", "SingletonSocket"]:
+            lock_path = os.path.join(profile_dir, lock_file)
+            if os.path.exists(lock_path):
+                try:
+                    if os.path.islink(lock_path):
+                        os.unlink(lock_path)
+                    else:
+                        os.remove(lock_path)
+                except Exception:
+                    pass
+
         async with async_playwright() as pw:
             context = await pw.chromium.launch_persistent_context(
                 user_data_dir=profile_dir,

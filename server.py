@@ -715,14 +715,16 @@ async def vnc_proxy(websocket: WebSocket, job_id: str):
     directly to the local x11vnc TCP server running on port 5900.
     """
     await websocket.accept(subprotocol="binary")
+    print(f"[VNC Proxy] WebSocket accepted for job {job_id}", flush=True)
     
     # 5900 is the default x11vnc port used by VirtualDisplay in publisher.py
     vnc_port = 5900
     
     try:
         reader, writer = await asyncio.open_connection("127.0.0.1", vnc_port)
+        print(f"[VNC Proxy] Connected to local x11vnc on port {vnc_port}", flush=True)
     except Exception as e:
-        print(f"[VNC Proxy] Could not connect to local x11vnc on port {vnc_port}: {e}")
+        print(f"[VNC Proxy] Could not connect to local x11vnc on port {vnc_port}: {e}", flush=True)
         try:
             await websocket.close()
         except:
@@ -731,6 +733,7 @@ async def vnc_proxy(websocket: WebSocket, job_id: str):
 
     async def tcp_to_ws():
         try:
+            print("[VNC Proxy] Starting tcp_to_ws loop...", flush=True)
             while True:
                 data = await reader.read(8192)
                 if not data:
