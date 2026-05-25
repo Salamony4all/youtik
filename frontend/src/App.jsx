@@ -80,7 +80,8 @@ const LiveViewer = ({ jobId, onClose }) => {
     try {
       rfbRef.current = new RFB(containerRef.current, wsUrl, {
         credentials: { password: '' },
-        shared: true
+        shared: true,
+        wsProtocols: []
       });
       rfbRef.current.scaleViewport = true;
       rfbRef.current.resizeSession = true;
