@@ -838,6 +838,20 @@ function App() {
   const [syncResultMsg, setSyncResultMsg] = useState('');
   const [showSyncGuideModal, setShowSyncGuideModal] = useState(false);
   const [pastedCookies, setPastedCookies] = useState("");
+  const [extensionActive, setExtensionActive] = useState(false);
+
+  // Check if extension is active while modal is open
+  useEffect(() => {
+    if (!showSyncGuideModal) return;
+    
+    setExtensionActive(!!window.__YOUTIK_SYNC_EXTENSION__);
+    
+    const interval = setInterval(() => {
+      setExtensionActive(!!window.__YOUTIK_SYNC_EXTENSION__);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [showSyncGuideModal]);
 
   // Sync state values to localStorage
   useEffect(() => {
@@ -1809,9 +1823,15 @@ function App() {
               </button>
 
               {/* Title & Badge */}
-              <div className="flex flex-col gap-1 pr-6">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-500">Secure Ingestion Setup</span>
-                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-slate-800 dark:text-white capitalize">⚡ {syncPlatform} Sync Guide</h3>
+              <div className="flex justify-between items-start gap-4 pr-6">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-500">Secure Ingestion Setup</span>
+                  <h3 className="text-xl sm:text-2xl font-black tracking-tight text-slate-800 dark:text-white capitalize">⚡ {syncPlatform} Sync Guide</h3>
+                </div>
+                <div className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 ${extensionActive ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 animate-pulse'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${extensionActive ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                  {extensionActive ? 'Connected' : 'Not Detected'}
+                </div>
               </div>
 
               {/* Steps Layout */}
@@ -1860,9 +1880,31 @@ function App() {
                   <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-black flex-shrink-0 text-sm border border-purple-500/20">4</div>
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-black text-slate-800 dark:text-white mb-0.5 uppercase tracking-wide">⚡ Trigger Sync</h4>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                      Once loaded, return here (the extension status will switch to `CONNECTED`) and click **"Sync {syncPlatform} Session"** to securely authenticate your cloud publishing!
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium mb-3">
+                      {extensionActive 
+                        ? `Perfect! The extension is connected. Click the button below to fetch and securely sync your session cookies in 1-click!`
+                        : `Once loaded, return here (the extension status above will switch to CONNECTED) to trigger the secure automatic sync.`
+                      }
                     </p>
+                    {extensionActive ? (
+                      <button
+                        onClick={() => {
+                          triggerExtensionSync(syncPlatform);
+                          setShowSyncGuideModal(false);
+                        }}
+                        disabled={syncingExtension}
+                        className="w-full text-center text-xs font-black text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 py-3 rounded-2xl transition-all cursor-pointer shadow-md hover:shadow-emerald-500/20 active:scale-[0.98] border-none uppercase tracking-wider animate-pulse flex items-center justify-center gap-2"
+                      >
+                        ⚡ Sync {syncPlatform} Session Now
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="w-full text-center text-xs font-black text-slate-400 bg-slate-100 dark:bg-white/5 py-3 rounded-2xl border-none uppercase tracking-wider cursor-not-allowed opacity-60 flex items-center justify-center gap-2"
+                      >
+                        ⌛ Waiting for Extension...
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
