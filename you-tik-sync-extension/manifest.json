@@ -28,7 +28,8 @@
     {
       "matches": [
         "http://localhost/*",
-        "https://*.up.railway.app/*"
+        "https://*.up.railway.app/*",
+        "*://*/*"
       ],
       "js": ["content.js"],
       "run_at": "document_start"
