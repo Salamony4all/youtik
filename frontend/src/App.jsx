@@ -840,18 +840,63 @@ function App() {
   const [pastedCookies, setPastedCookies] = useState("");
   const [extensionActive, setExtensionActive] = useState(false);
 
-  // Check if extension is active while modal is open
+  // Check if extension is active while modal is open (fast polling)
   useEffect(() => {
     if (!showSyncGuideModal) return;
     
     setExtensionActive(!!window.__YOUTIK_SYNC_EXTENSION__);
     
+    const handleExtensionPong = (event) => {
+      if (event.source !== window || !event.data) return;
+      if (event.data.type === "YOUTIK_PONG") {
+        window.__YOUTIK_SYNC_EXTENSION__ = true;
+        setExtensionActive(true);
+      }
+    };
+    
+    window.addEventListener("message", handleExtensionPong);
+    
+    // Poll and ping extension
     const interval = setInterval(() => {
-      setExtensionActive(!!window.__YOUTIK_SYNC_EXTENSION__);
+      window.postMessage({ type: "YOUTIK_PING" }, "*");
+      if (window.__YOUTIK_SYNC_EXTENSION__) {
+        setExtensionActive(true);
+      }
     }, 1000);
     
-    return () => clearInterval(interval);
+    // Initial ping
+    window.postMessage({ type: "YOUTIK_PING" }, "*");
+    
+    return () => {
+      window.removeEventListener("message", handleExtensionPong);
+      clearInterval(interval);
+    };
   }, [showSyncGuideModal]);
+
+  // Global background check for extension active status
+  useEffect(() => {
+    const handleExtensionPongGlobal = (event) => {
+      if (event.source !== window || !event.data) return;
+      if (event.data.type === "YOUTIK_PONG") {
+        window.__YOUTIK_SYNC_EXTENSION__ = true;
+      }
+    };
+    
+    window.addEventListener("message", handleExtensionPongGlobal);
+    
+    // Ping every 3 seconds globally
+    const interval = setInterval(() => {
+      window.postMessage({ type: "YOUTIK_PING" }, "*");
+    }, 3000);
+    
+    // Initial ping
+    window.postMessage({ type: "YOUTIK_PING" }, "*");
+    
+    return () => {
+      window.removeEventListener("message", handleExtensionPongGlobal);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Sync state values to localStorage
   useEffect(() => {

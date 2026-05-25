@@ -15,6 +15,12 @@ window.addEventListener("message", (event) => {
   // Only trust messages from the same window
   if (event.source !== window) return;
 
+  // CSP-safe Ping-Pong communication
+  if (event.data && event.data.type === "YOUTIK_PING") {
+    window.postMessage({ type: "YOUTIK_PONG" }, "*");
+    return;
+  }
+
   if (event.data && event.data.type === "YOUTIK_TRIGGER_SYNC") {
     const platform = event.data.platform || "youtube";
     console.log(`[You-Tik Content Script] Cookie sync triggered for ${platform}. Extracting cookies...`);
