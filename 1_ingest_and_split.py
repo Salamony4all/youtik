@@ -246,7 +246,7 @@ def convert_playwright_cookies(json_path: str, txt_path: str, log_fn=None) -> bo
         return False
 
 
-def download_via_playwright(url: str, output_wav_path: str, log_fn=None) -> bool:
+def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: str = None, log_fn=None) -> bool:
     """
     Fallback download method using Playwright headless browser.
     Bypasses YouTube bot detection by running a real browser with JavaScript
@@ -275,7 +275,7 @@ def download_via_playwright(url: str, output_wav_path: str, log_fn=None) -> bool
 
     # Determine if we can use a persistent Google profile or need cookies
     has_google_profile = os.path.exists(GOOGLE_PROFILE_DIR) and bool(os.listdir(GOOGLE_PROFILE_DIR))
-    env_cookies = os.environ.get("YOUTUBE_COOKIES", "")
+    env_cookies = raw_cookie_content or os.environ.get("YOUTUBE_COOKIES", "")
 
     if not has_google_profile and not env_cookies:
         log("[FALLBACK] No Google browser profile and no YOUTUBE_COOKIES env var. Cannot authenticate.")
@@ -766,7 +766,7 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
     wav_path = f"{audio_base}.wav"
     if not ydl_succeeded:
         log("[FALLBACK] yt-dlp could not download. Attempting Playwright browser-based download...")
-        pw_success = download_via_playwright(url, wav_path, log_fn=log_fn)
+        pw_success = download_via_playwright(url, wav_path, raw_cookie_content=raw_cookie_content, log_fn=log_fn)
         if not pw_success:
             # Both methods failed — raise the original error
             raise last_error or Exception("Both yt-dlp and Playwright fallback failed to download audio.")
