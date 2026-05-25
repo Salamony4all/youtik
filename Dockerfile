@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
     curl \
+    xz-utils \
     build-essential \
     nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -24,6 +25,13 @@ COPY requirements.txt .
 # Install dependencies (use CPU-only PyTorch to minimize build size and time)
 RUN pip install --upgrade pip setuptools wheel && \
     pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+
+# Download and install rustypipe-botguard (needed by yt-dlp-get-pot-rustypipe plugin for PO Tokens)
+RUN curl -L -o /tmp/rustypipe.tar.xz https://codeberg.org/ThetaDev/rustypipe-botguard/releases/download/v0.1.2/rustypipe-botguard-v0.1.2-x86_64-unknown-linux-gnu.tar.xz && \
+    tar -xf /tmp/rustypipe.tar.xz -C /tmp && \
+    mv /tmp/rustypipe-botguard /usr/local/bin/ && \
+    chmod +x /usr/local/bin/rustypipe-botguard && \
+    rm /tmp/rustypipe.tar.xz
 
 # Install Playwright Chromium and its system dependencies
 RUN playwright install --with-deps chromium

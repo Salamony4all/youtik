@@ -4,6 +4,7 @@ python-dotenv==1.2.2
 
 # Media Ingest
 yt-dlp==2026.3.17
+yt-dlp-get-pot-rustypipe
 
 # Transcription & Audio (Local Brawn)
 stable-ts==2.19.1
