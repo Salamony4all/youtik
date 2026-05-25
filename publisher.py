@@ -189,9 +189,7 @@ class VirtualDisplay:
                     "-noxfixes",
                     "-noxdamage",
                     "-wait", "5",      # 5ms poll interval (fast updates)
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                ]
             )
             await asyncio.sleep(0.3)
             print(f"[VNC] x11vnc started on port {self.vnc_port} (PID: {self.vnc_proc.pid})")
@@ -209,10 +207,8 @@ class VirtualDisplay:
                     "websockify",
                     "--web", novnc_path,
                     str(self.ws_port),
-                    f"localhost:{self.vnc_port}",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                    f"127.0.0.1:{self.vnc_port}",
+                ]
             )
             await asyncio.sleep(0.3)
             print(f"[VNC] websockify started on port {self.ws_port} → VNC:{self.vnc_port} (PID: {self.ws_proc.pid})")
