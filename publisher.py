@@ -11,8 +11,11 @@ run headless.
 """
 
 import asyncio
+import base64
 import json
 import os
+import signal
+import subprocess
 import time
 import uuid
 from pathlib import Path
@@ -103,6 +106,182 @@ def _set_status(job_id: str, status: str, detail: str = ""):
         publish_jobs[job_id]["updated_at"] = time.time()
 
 
+def _is_headless_server() -> bool:
+    """Detect if running on a headless cloud server (Railway, Render, Docker)."""
+    return (
+        os.environ.get("RENDER") is not None
+        or os.environ.get("DOCKER_CONTAINER") is not None
+        or os.environ.get("RAILWAY_ENVIRONMENT") is not None
+    )
+
+
+# ---------------------------------------------------------------------------
+# Virtual Display Manager (Xvfb + x11vnc + websockify)
+# ---------------------------------------------------------------------------
+
+class VirtualDisplay:
+    """
+    Manages a virtual display stack for live browser streaming:
+      Xvfb (:99) → x11vnc (VNC :5900) → websockify (WebSocket :6080)
+
+    The user connects to websockify via noVNC in their browser to watch
+    and interact with the Playwright browser in real time.
+    """
+
+    _instance = None  # Singleton — one display per server process
+    _lock = asyncio.Lock() if hasattr(asyncio, 'Lock') else None
+
+    def __init__(self):
+        self.display = ":99"
+        self.vnc_port = 5900
+        self.ws_port = 6080
+        self.xvfb_proc = None
+        self.vnc_proc = None
+        self.ws_proc = None
+        self._running = False
+        self._active_sessions = 0
+
+    @classmethod
+    async def get_instance(cls):
+        """Get or create the singleton VirtualDisplay."""
+        if cls._instance is None:
+            cls._instance = VirtualDisplay()
+        if not cls._instance._running:
+            await cls._instance.start()
+        cls._instance._active_sessions += 1
+        return cls._instance
+
+    async def start(self):
+        """Start Xvfb, x11vnc, and websockify."""
+        if self._running:
+            return
+
+        print("[VNC] Starting virtual display stack…")
+
+        # 1. Start Xvfb (virtual framebuffer)
+        try:
+            self.xvfb_proc = subprocess.Popen(
+                ["Xvfb", self.display, "-screen", "0", "1280x720x24", "-ac", "-nolisten", "tcp"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            await asyncio.sleep(0.5)  # Give Xvfb time to start
+            print(f"[VNC] Xvfb started on display {self.display} (PID: {self.xvfb_proc.pid})")
+        except FileNotFoundError:
+            print("[VNC] WARNING: Xvfb not found — falling back to headless mode")
+            return
+        except Exception as e:
+            print(f"[VNC] WARNING: Failed to start Xvfb: {e}")
+            return
+
+        # 2. Start x11vnc (captures the virtual display as VNC)
+        try:
+            self.vnc_proc = subprocess.Popen(
+                [
+                    "x11vnc",
+                    "-display", self.display,
+                    "-nopw",           # No password (internal-only)
+                    "-forever",        # Don't exit after first disconnect
+                    "-shared",         # Allow multiple connections
+                    "-rfbport", str(self.vnc_port),
+                    "-xkb",            # Use X keyboard
+                    "-noxrecord",
+                    "-noxfixes",
+                    "-noxdamage",
+                    "-wait", "5",      # 5ms poll interval (fast updates)
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            await asyncio.sleep(0.3)
+            print(f"[VNC] x11vnc started on port {self.vnc_port} (PID: {self.vnc_proc.pid})")
+        except FileNotFoundError:
+            print("[VNC] WARNING: x11vnc not found — display started but no VNC")
+        except Exception as e:
+            print(f"[VNC] WARNING: Failed to start x11vnc: {e}")
+
+        # 3. Start websockify (proxies VNC over WebSocket for noVNC)
+        try:
+            # noVNC static files location on Debian/Ubuntu
+            novnc_path = "/usr/share/novnc"
+            self.ws_proc = subprocess.Popen(
+                [
+                    "websockify",
+                    "--web", novnc_path,
+                    str(self.ws_port),
+                    f"localhost:{self.vnc_port}",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            await asyncio.sleep(0.3)
+            print(f"[VNC] websockify started on port {self.ws_port} → VNC:{self.vnc_port} (PID: {self.ws_proc.pid})")
+        except FileNotFoundError:
+            print("[VNC] WARNING: websockify not found — VNC running but no WebSocket proxy")
+        except Exception as e:
+            print(f"[VNC] WARNING: Failed to start websockify: {e}")
+
+        self._running = True
+        print("[VNC] Virtual display stack ready ✓")
+
+    async def release(self):
+        """Decrement active session count; stop stack if no sessions remain."""
+        self._active_sessions = max(0, self._active_sessions - 1)
+        if self._active_sessions == 0:
+            await self.stop()
+
+    async def stop(self):
+        """Tear down the virtual display stack."""
+        if not self._running:
+            return
+        print("[VNC] Stopping virtual display stack…")
+        for name, proc in [("websockify", self.ws_proc), ("x11vnc", self.vnc_proc), ("Xvfb", self.xvfb_proc)]:
+            if proc and proc.poll() is None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=3)
+                    print(f"[VNC] {name} stopped.")
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+        self.xvfb_proc = self.vnc_proc = self.ws_proc = None
+        self._running = False
+
+    @property
+    def is_running(self):
+        return self._running
+
+    async def take_screenshot(self) -> Optional[str]:
+        """Capture a screenshot of the virtual display as base64 PNG."""
+        if not self._running:
+            return None
+        screenshot_path = "/tmp/vnc_screenshot.png"
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "xdotool", "getactivewindow", "--",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.wait()
+        except Exception:
+            pass
+        try:
+            import_proc = await asyncio.create_subprocess_exec(
+                "import", "-display", self.display, "-window", "root", screenshot_path,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(import_proc.wait(), timeout=5)
+            if os.path.isfile(screenshot_path):
+                with open(screenshot_path, "rb") as f:
+                    return base64.b64encode(f.read()).decode("ascii")
+        except Exception as e:
+            print(f"[VNC] Screenshot failed: {e}")
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Google Browser Authentication (Real Playwright-based login)
 # ---------------------------------------------------------------------------
@@ -131,18 +310,26 @@ async def _run_google_login(job_id: str):
     os.makedirs(profile_dir, exist_ok=True)
 
     # Detect headless server (Render, Docker, CI, etc.)
-    is_headless_server = (
-        os.environ.get("RENDER") is not None
-        or os.environ.get("DISPLAY") is None
-        or os.environ.get("DOCKER_CONTAINER") is not None
-        or os.environ.get("RAILWAY_ENVIRONMENT") is not None
-    )
+    on_server = _is_headless_server()
+    virtual_display = None
+    headless = on_server
 
     try:
+        if on_server:
+            try:
+                virtual_display = await VirtualDisplay.get_instance()
+                headless = False
+                login_jobs[job_id]["vnc_active"] = True
+                login_jobs[job_id]["vnc_ws_port"] = virtual_display.ws_port
+                login_jobs[job_id]["detail"] = "Virtual display ready — launching visible browser for Google sign-in…"
+            except Exception as e:
+                print(f"[VNC] Failed to start virtual display for login: {e}")
+                login_jobs[job_id]["vnc_active"] = False
+
         async with async_playwright() as pw:
             context = await pw.chromium.launch_persistent_context(
                 user_data_dir=profile_dir,
-                headless=True if is_headless_server else False,
+                headless=headless,
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",
@@ -190,10 +377,12 @@ async def _run_google_login(job_id: str):
                 login_jobs[job_id]["user"] = master_data
 
                 await context.close()
+                if virtual_display:
+                    await virtual_display.release()
                 return
 
-            # Not logged in yet — check if we're on a headless server
-            if is_headless_server:
+            # Not logged in yet — check if we're on a headless server without VNC
+            if on_server and not virtual_display:
                 # On Render/Docker, user can't interact with the browser
                 await context.close()
                 
@@ -216,7 +405,7 @@ async def _run_google_login(job_id: str):
                     login_jobs[job_id]["user"] = master_data
                 else:
                     login_jobs[job_id]["status"] = "ERROR"
-                    login_jobs[job_id]["detail"] = "Headless server detected. Set the YOUTUBE_COOKIES environment variable in Railway dashboard to authenticate."
+                    login_jobs[job_id]["detail"] = "Headless server detected. Virtual Display failed. Set the YOUTUBE_COOKIES environment variable in Railway dashboard to authenticate."
                 return
 
             # Desktop/local — wait for the user to sign in manually
@@ -267,6 +456,14 @@ async def _run_google_login(job_id: str):
     except Exception as e:
         login_jobs[job_id]["status"] = "ERROR"
         login_jobs[job_id]["detail"] = f"Login failed: {str(e)}"
+    finally:
+        if virtual_display:
+            try:
+                await virtual_display.release()
+            except Exception:
+                pass
+        if job_id in login_jobs:
+            login_jobs[job_id]["vnc_active"] = False
 
 
 def start_google_login_job() -> str:
@@ -348,15 +545,20 @@ async def _publish_tiktok(
 
         from tiktokautouploader import upload_tiktok  # type: ignore
 
-        # Detect headless server environment (force headless=True on cloud servers like Railway/Docker)
-        is_headless_server = (
-            os.environ.get("RENDER") is not None
-            or os.environ.get("DISPLAY") is None
-            or os.environ.get("DOCKER_CONTAINER") is not None
-            or os.environ.get("RAILWAY_ENVIRONMENT") is not None
-        )
-        if is_headless_server:
-            headless = True
+        # Detect headless server environment
+        on_server = _is_headless_server()
+        virtual_display = None
+        if on_server:
+            try:
+                virtual_display = await VirtualDisplay.get_instance()
+                headless = False  # Run visible on virtual display for VNC streaming
+                if job_id in publish_jobs:
+                    publish_jobs[job_id]["vnc_active"] = True
+                    publish_jobs[job_id]["vnc_ws_port"] = virtual_display.ws_port
+            except Exception:
+                headless = True
+                if job_id in publish_jobs:
+                    publish_jobs[job_id]["vnc_active"] = False
 
         # Prepare the cookie files from database, falling back to env var if needed
         from database import db
@@ -387,7 +589,7 @@ async def _publish_tiktok(
                     print("Failed to parse TIKTOK_COOKIES env var:", e)
 
         # Check if we have valid cookies on headless server
-        if is_headless_server:
+        if on_server:
             if not _is_tiktok_cookies_valid(account):
                 _set_status(
                     job_id,
@@ -460,16 +662,27 @@ async def _publish_playwright(
         )
         return
 
+    virtual_display = None
     try:
-        # Detect headless server environment (force headless=True on cloud servers like Railway/Docker)
-        is_headless_server = (
-            os.environ.get("RENDER") is not None
-            or os.environ.get("DISPLAY") is None
-            or os.environ.get("DOCKER_CONTAINER") is not None
-            or os.environ.get("RAILWAY_ENVIRONMENT") is not None
-        )
-        if is_headless_server:
-            headless = True
+        # Detect headless server environment
+        on_server = _is_headless_server()
+
+        if on_server:
+            # Start the virtual display so we can run the browser non-headless
+            # and stream it to the user via noVNC
+            try:
+                virtual_display = await VirtualDisplay.get_instance()
+                headless = False  # Run non-headless on the virtual display!
+                # Store VNC info in the job so the frontend can connect
+                if job_id in publish_jobs:
+                    publish_jobs[job_id]["vnc_active"] = True
+                    publish_jobs[job_id]["vnc_ws_port"] = virtual_display.ws_port
+                _set_status(job_id, "LAUNCHING", f"Virtual display ready — launching visible browser for {platform}…")
+            except Exception as vd_err:
+                print(f"[VNC] Failed to start virtual display: {vd_err}. Falling back to headless.")
+                headless = True
+                if job_id in publish_jobs:
+                    publish_jobs[job_id]["vnc_active"] = False
 
         # Prepare user cookies from database, falling back to environment variables
         from database import db
@@ -486,7 +699,7 @@ async def _publish_playwright(
                     print(f"Failed to parse {platform.upper()}_COOKIES env var:", e)
 
         # Check if we have dynamic cookies or local persistent context fallback
-        if not user_cookies and is_headless_server:
+        if not user_cookies and on_server:
             _set_status(
                 job_id,
                 "ERROR",
@@ -507,6 +720,7 @@ async def _publish_playwright(
                         "--no-sandbox",
                         "--disable-infobars",
                         "--disable-dev-shm-usage",
+                        "--disable-gpu",
                     ],
                 )
                 context = await browser.new_context(
@@ -563,6 +777,7 @@ async def _publish_playwright(
                         "--no-sandbox",
                         "--disable-infobars",
                         "--disable-dev-shm-usage",
+                        "--disable-gpu",
                     ],
                     viewport={"width": 1280, "height": 720},
                     locale="en-US",
@@ -572,6 +787,10 @@ async def _publish_playwright(
 
             page = context.pages[0] if context.pages else await context.new_page()
 
+            # Store the page reference for live screenshots
+            if job_id in publish_jobs:
+                publish_jobs[job_id]["_page"] = page
+
             try:
                 if platform == "youtube":
                     await _upload_youtube(job_id, page, video_path, caption, save_as_draft, headless)
@@ -580,30 +799,41 @@ async def _publish_playwright(
                 elif platform == "twitter":
                     await _upload_twitter(job_id, page, video_path, caption, headless)
                 
-                # Success path - keep open if visible
+                # Success path - keep open if visible (local or VNC)
                 if not headless:
-                    _set_status(job_id, "PUBLISHED", f"Successfully uploaded to {PLATFORMS.get(platform, {}).get('name', platform)}! Keeping browser window open for you to verify or close manually.")
-                    while not page.is_closed():
-                        try:
-                            await asyncio.sleep(1)
-                        except Exception:
-                            break
+                    _set_status(job_id, "PUBLISHED", f"Successfully uploaded to {PLATFORMS.get(platform, {}).get('name', platform)}! Browser visible for verification.")
+                    # On server with VNC: keep open for 30s so user can see the result
+                    if on_server and virtual_display:
+                        await asyncio.sleep(30)
+                    else:
+                        while not page.is_closed():
+                            try:
+                                await asyncio.sleep(1)
+                            except Exception:
+                                break
                 else:
                     _set_status(job_id, "PUBLISHED", f"Successfully uploaded to {PLATFORMS.get(platform, {}).get('name', platform)} ✓")
             except Exception as upload_exc:
                 print(f"[{platform}] Upload script error: {upload_exc}")
                 # Error path - keep open if visible
                 if not headless:
-                    _set_status(job_id, "ERROR", f"{platform} upload failed: {upload_exc}. Browser kept open for manual review.")
-                    while not page.is_closed():
-                        try:
-                            await asyncio.sleep(1)
-                        except Exception:
-                            break
+                    _set_status(job_id, "ERROR", f"{platform} upload failed: {upload_exc}. Browser kept open for review.")
+                    if on_server and virtual_display:
+                        await asyncio.sleep(60)  # Give user time to see error via VNC
+                    else:
+                        while not page.is_closed():
+                            try:
+                                await asyncio.sleep(1)
+                            except Exception:
+                                break
                 else:
                     # Headless error path
                     _set_status(job_id, "ERROR", f"{platform} upload failed: {upload_exc}")
                     raise upload_exc
+
+            # Clean up page reference
+            if job_id in publish_jobs:
+                publish_jobs[job_id].pop("_page", None)
 
             if browser:
                 await browser.close()
@@ -612,6 +842,17 @@ async def _publish_playwright(
 
     except Exception as exc:
         _set_status(job_id, "ERROR", f"{platform} upload session failed: {exc}")
+    finally:
+        # Release the virtual display when done
+        if virtual_display:
+            try:
+                await virtual_display.release()
+            except Exception:
+                pass
+        # Clean up VNC flags
+        if job_id in publish_jobs:
+            publish_jobs[job_id]["vnc_active"] = False
+            publish_jobs[job_id].pop("_page", None)
 
 
 async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False, headless=False):

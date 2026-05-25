@@ -4,8 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "supportedArchitectures": {
-    "os": ["current", "linux"],
-    "cpu": ["current", "x64"]
+    "os": [
+      "current",
+      "linux"
+    ],
+    "cpu": [
+      "current",
+      "x64"
+    ]
   },
   "scripts": {
     "dev": "vite",
@@ -24,6 +30,7 @@
     "vite": "^8.0.10"
   },
   "dependencies": {
+    "@novnc/novnc": "^1.7.0",
     "axios": "^1.16.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",

@@ -38,15 +38,9 @@ try:
         text=True
     )
     
-    # Install Phantomwright browsers (required by tiktokautouploader)
-    subprocess.run(
-        [sys.executable, "-m", "phantomwright", "install", "chromium"],
-        check=False,
-        capture_output=True,
-        text=True
-    )
+    # Note: phantomwright uses the same browser binaries as Playwright — no separate install needed
     
-    print(f"[SYSTEM] Playwright & Phantomwright browser check completed successfully (Path: {pw_path}).")
+    print(f"[SYSTEM] Playwright browser check completed successfully (Path: {pw_path}).")
     
     # Try installing system dependencies
     try:
@@ -550,6 +544,7 @@ async def publish_status(job_id: str):
         "platform": job["platform"],
         "status": job["status"],
         "detail": job["detail"],
+        "vnc_active": job.get("vnc_active", False),
     }
 
 
@@ -577,6 +572,7 @@ async def auth_google_status(job_id: str):
         "status": job["status"],
         "detail": job.get("detail", ""),
         "user": job.get("user"),
+        "vnc_active": job.get("vnc_active", False),
     }
 
 
@@ -708,6 +704,66 @@ async def download_sync_extension():
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=you-tik-sync-extension.zip"}
     )
+
+from fastapi import WebSocket, WebSocketDisconnect
+import asyncio
+
+@app.websocket("/api/vnc/{job_id}")
+async def vnc_proxy(websocket: WebSocket, job_id: str):
+    """
+    Proxies a WebSocket connection from the frontend's noVNC client
+    directly to the local x11vnc TCP server running on port 5900.
+    """
+    await websocket.accept(subprotocol="binary")
+    
+    # 5900 is the default x11vnc port used by VirtualDisplay in publisher.py
+    vnc_port = 5900
+    
+    try:
+        reader, writer = await asyncio.open_connection("127.0.0.1", vnc_port)
+    except Exception as e:
+        print(f"[VNC Proxy] Could not connect to local x11vnc on port {vnc_port}: {e}")
+        try:
+            await websocket.close()
+        except:
+            pass
+        return
+
+    async def tcp_to_ws():
+        try:
+            while True:
+                data = await reader.read(8192)
+                if not data:
+                    break
+                await websocket.send_bytes(data)
+        except Exception:
+            pass
+
+    async def ws_to_tcp():
+        try:
+            while True:
+                data = await websocket.receive_bytes()
+                writer.write(data)
+                await writer.drain()
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            pass
+
+    # Run both proxy directions concurrently
+    await asyncio.gather(tcp_to_ws(), ws_to_tcp())
+    
+    # Clean up connections when done
+    try:
+        writer.close()
+        await writer.wait_closed()
+    except Exception:
+        pass
+    
+    try:
+        await websocket.close()
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

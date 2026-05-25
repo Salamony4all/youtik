@@ -1,7 +1,7 @@
 # Use Python 3.10 slim as base
 FROM python:3.10-slim
 
-# Install system dependencies (including ffmpeg and system packages needed for browser automation)
+# Install system dependencies (including ffmpeg, browser automation, and live browser streaming)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
@@ -9,13 +9,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xz-utils \
     build-essential \
     nodejs \
+    xvfb \
+    x11vnc \
+    novnc \
+    websockify \
+    x11-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PLAYWRIGHT_BROWSERS_PATH=/app/pw-browsers
+    PLAYWRIGHT_BROWSERS_PATH=/app/pw-browsers \
+    DISPLAY=:99
 
 WORKDIR /app
 
@@ -33,9 +39,9 @@ RUN curl -L -o /tmp/rustypipe.tar.xz https://codeberg.org/ThetaDev/rustypipe-bot
     chmod +x /usr/local/bin/rustypipe-botguard && \
     rm /tmp/rustypipe.tar.xz
 
-# Install Playwright & Phantomwright Chromium and its system dependencies
-RUN playwright install --with-deps chromium && \
-    python -m phantomwright install chromium
+# Install Playwright Chromium and its system dependencies
+# (phantomwright is a stealth wrapper around Playwright and uses the same browser binaries)
+RUN playwright install --with-deps chromium
 
 # Copy application source code
 COPY . .

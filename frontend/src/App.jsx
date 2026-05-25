@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Terminal, Download, Settings, Layers, Scissors, Cpu, CheckCircle2, AlertCircle, Link as LinkIcon, Sparkles, ChevronRight, ChevronDown, Monitor, Layout, Sun, Moon, Check, Edit3, Save, Plus, Trash2, Pause, Mic, PenTool, Music, Share2, ExternalLink, Loader, RotateCcw } from 'lucide-react';
 import axios from 'axios';
+import RFB from '@novnc/novnc';
 
 const getApiBase = () => {
   if (import.meta.env.VITE_API_BASE) {
@@ -66,7 +67,62 @@ const PUBLISH_PLATFORMS = [
   { id: 'twitter',   icon: '🐦', name: 'X / Twitter',     color: '#1DA1F2' },
 ];
 
-const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, setGoogleUser, handleGoogleSignIn, handleGoogleSignOut, isGoogleSigningIn, googleLoginDetail, triggerExtensionSync }) => {
+const LiveViewer = ({ jobId, onClose }) => {
+  const containerRef = useRef(null);
+  const rfbRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    // Construct WebSocket URL matching the FastAPI VNC proxy endpoint
+    const wsUrl = API_BASE.replace('http', 'ws') + `/api/vnc/${jobId}`;
+    
+    try {
+      rfbRef.current = new RFB(containerRef.current, wsUrl, {
+        credentials: { password: '' },
+        shared: true
+      });
+      rfbRef.current.scaleViewport = true;
+      rfbRef.current.resizeSession = true;
+    } catch (e) {
+      console.error("noVNC init error:", e);
+    }
+
+    return () => {
+      if (rfbRef.current) {
+        rfbRef.current.disconnect();
+      }
+    };
+  }, [jobId]);
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center">
+      <div className="w-full h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6">
+        <div className="flex items-center space-x-3">
+          <Monitor className="text-blue-500 w-5 h-5" />
+          <h2 className="text-lg font-medium text-white">Live Browser Viewer</h2>
+          <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse flex items-center">
+             <div className="w-1.5 h-1.5 bg-white rounded-full mr-1.5" />
+             LIVE
+          </span>
+        </div>
+        <button 
+          onClick={onClose}
+          className="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+        >
+          Close Viewer
+        </button>
+      </div>
+      <div 
+        ref={containerRef} 
+        className="flex-1 w-full flex items-center justify-center overflow-hidden relative"
+      />
+    </div>
+  );
+};
+
+
+const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, setGoogleUser, handleGoogleSignIn, handleGoogleSignOut, isGoogleSigningIn, googleLoginDetail, triggerExtensionSync, setActiveVncJobId }) => {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -134,8 +190,13 @@ const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, se
       const poll = setInterval(async () => {
         try {
           const statusRes = await axios.get(`${API_BASE}/publish/status/${jobId}`);
-          const { status: st, detail } = statusRes.data;
+          const { status: st, detail, vnc_active } = statusRes.data;
           setPublishStatus(prev => ({ ...prev, [key]: { status: st, detail, jobId } }));
+          
+          if (vnc_active && showBrowser) {
+            setActiveVncJobId(jobId);
+          }
+
           if (st === 'PUBLISHED' || st === 'ERROR') clearInterval(poll);
         } catch { clearInterval(poll); }
       }, 2000);
@@ -153,10 +214,10 @@ const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, se
       <button
         ref={buttonRef}
         onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
-        className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-2xl flex items-center justify-center shadow-xl hover:scale-110 transition-all duration-300 active:scale-95"
+        className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-xl hover:scale-110 transition-all duration-300 active:scale-95"
         title="Publish to social media"
       >
-        <Share2 size={20} />
+        <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
       </button>
 
       {ReactDOM.createPortal(
@@ -829,6 +890,7 @@ function App() {
   const [selectedTTSEngine, setSelectedTTSEngine] = useState(localStorage.getItem('utik_tts_engine') || 'supertonic');
   const [selectedTTSVoice, setSelectedTTSVoice] = useState(localStorage.getItem('utik_tts_voice') || 'M1');
   const [manualReview, setManualReview] = useState(localStorage.getItem('utik_manual_review') === 'true');
+  const [activeVncJobId, setActiveVncJobId] = useState(null);
 
   // Google Master Auth State (shared across landing page + publish panel)
   const [googleUser, setGoogleUser] = useState(null);
@@ -1012,8 +1074,12 @@ function App() {
       const poll = setInterval(async () => {
         try {
           const statusRes = await axios.get(`${API_BASE}/auth/google/status/${jobId}`);
-          const { status: st, detail, user } = statusRes.data;
+          const { status: st, detail, user, vnc_active } = statusRes.data;
           setGoogleLoginDetail(detail || st);
+
+          if (vnc_active) {
+            setActiveVncJobId(jobId);
+          }
 
           if (st === 'AUTHENTICATED') {
             clearInterval(poll);
@@ -1384,39 +1450,64 @@ function App() {
 
   return (
     <div className={`min-h-screen transition-colors duration-500 overflow-x-hidden ${isDark ? 'dark bg-[#050505]' : 'bg-slate-50'}`}>
+      
+      {activeVncJobId && (
+        <LiveViewer 
+          jobId={activeVncJobId} 
+          onClose={() => setActiveVncJobId(null)} 
+        />
+      )}
+
       <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-30">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-yt-red/10 blur-[120px] rounded-full animate-pulse-slow"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-tk-cyan/10 blur-[120px] rounded-full animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
       </div>
 
-      <nav className="relative z-50 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 border-b border-white/5 backdrop-blur-xl transition-all duration-500">
-        <div className="flex items-center gap-4 group cursor-pointer">
-          <div className="bg-[#FF0000] px-3 sm:px-4 py-1.5 sm:py-2 rounded-[12px] sm:rounded-[14px] flex items-center justify-center shadow-[0_0_30px_rgba(255,0,0,0.4)] group-hover:scale-105 transition-transform duration-300">
-            <span className="text-white font-black italic text-xl sm:text-3xl tracking-tighter leading-none">You</span>
+      <nav className="relative z-50 flex flex-wrap items-center justify-between gap-y-4 px-4 sm:px-8 py-4 sm:py-6 border-b border-white/5 backdrop-blur-xl transition-all duration-500">
+        <div className="flex items-center gap-2 sm:gap-4 group cursor-pointer w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="bg-[#FF0000] px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-[10px] sm:rounded-[14px] flex items-center justify-center shadow-[0_0_30px_rgba(255,0,0,0.4)] group-hover:scale-105 transition-transform duration-300">
+              <span className="text-white font-black italic text-lg sm:text-3xl tracking-tighter leading-none">You</span>
+            </div>
+            <div className="relative flex items-center">
+              <span className={`${isDark ? 'text-white' : 'text-slate-900'} font-black text-xl sm:text-4xl tracking-tighter hover:animate-glitch inline-block`} style={{ textShadow: isDark ? '3px 0 #25F4EE, -3px 0 #FE2C55' : 'none' }}>
+                Tik
+              </span>
+              <div className="ml-2 sm:ml-5 h-5 sm:h-8 w-px bg-slate-300 dark:bg-white/20" />
+              <div className="flex flex-col ml-2 sm:ml-5">
+                <span className="text-[7px] sm:text-[11px] font-black tracking-[0.2em] sm:tracking-[0.3em] text-slate-500 dark:text-slate-300 uppercase">Studio</span>
+                <span className="text-[7px] sm:text-[11px] font-black tracking-[0.2em] sm:tracking-[0.3em] text-yt-red uppercase">V6.0</span>
+              </div>
+            </div>
           </div>
-          <div className="relative flex items-center">
-            <span className={`${isDark ? 'text-white' : 'text-slate-900'} font-black text-2xl sm:text-4xl tracking-tighter hover:animate-glitch inline-block`} style={{ textShadow: isDark ? '3px 0 #25F4EE, -3px 0 #FE2C55' : 'none' }}>
-              Tik
-            </span>
-            <div className="ml-3 sm:ml-5 h-6 sm:h-8 w-px bg-slate-300 dark:bg-white/20" />
-            <div className="flex flex-col ml-3 sm:ml-5">
-              <span className="text-[9px] sm:text-[11px] font-black tracking-[0.3em] text-slate-500 dark:text-slate-300 uppercase">Studio</span>
-              <span className="text-[9px] sm:text-[11px] font-black tracking-[0.3em] text-yt-red uppercase">V6.0</span>
+          
+          {/* Mobile Right Buttons (Hidden on sm) */}
+          <div className="flex sm:hidden items-center gap-1.5">
+            <button onClick={handleResetSession} className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:scale-105 rounded-full transition-all duration-300 active:scale-90 flex items-center justify-center border border-red-500/20 dark:border-red-500/30">
+              <RotateCcw size={16} />
+            </button>
+            <button onClick={() => setIsDark(!isDark)} className="p-2 bg-slate-200 dark:bg-white/5 hover:bg-slate-300 dark:hover:bg-white/10 rounded-full text-slate-600 dark:text-slate-400 transition-all active:scale-90">
+              {isDark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <div className="relative">
+              <button onClick={() => setShowSettings(!showSettings)} className={`p-2 bg-slate-200 dark:bg-white/5 hover:bg-slate-300 dark:hover:bg-white/10 rounded-full text-slate-600 dark:text-slate-400 transition-all ${showSettings ? 'bg-yt-red/10 text-yt-red' : ''}`}>
+                <Settings size={16} />
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="flex bg-slate-200 dark:bg-white/5 p-1 rounded-xl border border-slate-300 dark:border-white/10 transition-colors">
-          <button onClick={() => setActiveTab('studio')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 rounded-lg transition-all text-sm ${activeTab === 'studio' ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
-            <Monitor size={16} /> <span className="font-medium hidden sm:inline">Studio</span>
+        <div className="flex order-last sm:order-none w-full sm:w-auto justify-center bg-slate-200 dark:bg-white/5 p-1 rounded-xl border border-slate-300 dark:border-white/10 transition-colors">
+          <button onClick={() => setActiveTab('studio')} className={`flex items-center justify-center flex-1 sm:flex-none gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 rounded-lg transition-all text-sm ${activeTab === 'studio' ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+            <Monitor size={16} /> <span className="font-medium sm:inline">Studio</span>
           </button>
-          <button onClick={() => setActiveTab('results')} className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 rounded-lg transition-all text-sm ${activeTab === 'results' ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
-            <Layout size={16} /> <span className="font-medium hidden sm:inline">Gallery</span>
+          <button onClick={() => setActiveTab('results')} className={`flex items-center justify-center flex-1 sm:flex-none gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 rounded-lg transition-all text-sm ${activeTab === 'results' ? 'bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-lg' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>
+            <Layout size={16} /> <span className="font-medium sm:inline">Gallery</span>
             {results.length > 0 && <span className="flex h-2 w-2 rounded-full bg-yt-red animate-pulse ml-1 sm:ml-2"></span>}
           </button>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="hidden sm:flex items-center gap-4">
           <div className="hidden md:flex flex-col items-end">
             <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">System Status</div>
             <div className="flex items-center gap-2">
@@ -1865,17 +1956,17 @@ function App() {
                           <div className="w-full h-full flex items-center justify-center text-slate-200 dark:text-slate-900 bg-slate-100 dark:bg-black"><Play size={80} fill="currentColor" /></div>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-white/90 dark:from-[#050505] via-transparent to-transparent opacity-80"></div>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 opacity-0 group-hover:opacity-100 transition-all duration-500 bg-black/40 backdrop-blur-sm">
-                          <button onClick={() => setSelectedVideo(clip)} className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:scale-110 transition-transform"><Play size={28} fill="currentColor" /></button>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-white">Preview Asset</span>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-500 bg-black/20 lg:bg-black/40 backdrop-blur-none lg:backdrop-blur-sm pointer-events-none">
+                          <button onClick={() => setSelectedVideo(clip)} className="w-12 h-12 sm:w-16 sm:h-16 bg-white/80 lg:bg-white text-black rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:scale-110 transition-transform pointer-events-auto"><Play size={24} fill="currentColor" className="sm:w-7 sm:h-7" /></button>
+                          <span className="hidden lg:block text-[10px] font-black uppercase tracking-widest text-white">Preview Asset</span>
                         </div>
-                        <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end">
+                        <div className="absolute bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6 flex justify-between items-end z-10 pointer-events-none">
                           <div className="space-y-1">
-                            <div className="text-lg font-black tracking-tight truncate max-w-[140px] uppercase text-slate-900 dark:text-white">{clip.filename.split('_').pop()}</div>
+                            <div className="text-sm sm:text-lg font-black tracking-tight truncate max-w-[80px] sm:max-w-[140px] uppercase text-slate-900 dark:text-white pointer-events-auto">{clip.filename.split('_').pop()}</div>
                           </div>
-                          <div className="flex items-center gap-2 transform group-hover:translate-y-0 translate-y-2 opacity-0 group-hover:opacity-100 transition-all">
-                            <PublishDropdown clip={clip} publishStatus={publishStatus} setPublishStatus={setPublishStatus} googleUser={googleUser} setGoogleUser={setGoogleUser} handleGoogleSignIn={handleGoogleSignIn} handleGoogleSignOut={handleGoogleSignOut} isGoogleSigningIn={isGoogleSigningIn} googleLoginDetail={googleLoginDetail} triggerExtensionSync={triggerExtensionSync} />
-                            <a href={`${API_BASE}${clip.url}`} download className="w-12 h-12 bg-white text-black rounded-2xl flex items-center justify-center shadow-xl hover:bg-yt-red hover:text-white transition-all"><Download size={22} /></a>
+                          <div className="flex items-center gap-1.5 sm:gap-2 transform lg:group-hover:translate-y-0 lg:translate-y-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-all pointer-events-auto">
+                            <PublishDropdown clip={clip} publishStatus={publishStatus} setPublishStatus={setPublishStatus} googleUser={googleUser} setGoogleUser={setGoogleUser} handleGoogleSignIn={handleGoogleSignIn} handleGoogleSignOut={handleGoogleSignOut} isGoogleSigningIn={isGoogleSigningIn} googleLoginDetail={googleLoginDetail} triggerExtensionSync={triggerExtensionSync} setActiveVncJobId={setActiveVncJobId} />
+                            <a href={`${API_BASE}${clip.url}`} download className="w-10 h-10 sm:w-12 sm:h-12 bg-white text-black rounded-xl sm:rounded-2xl flex items-center justify-center shadow-xl hover:bg-yt-red hover:text-white transition-all"><Download className="w-4 h-4 sm:w-5 sm:h-5" /></a>
                           </div>
                         </div>
                       </div>
@@ -1892,14 +1983,14 @@ function App() {
         {selectedVideo && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 md:p-12 overflow-hidden">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedVideo(null)} className="absolute inset-0 bg-black/60 backdrop-blur-[40px] transition-all duration-700" />
-            <motion.div initial={{ opacity: 0, scale: 0.8, y: 40 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: 40 }} className="relative h-[80vh] aspect-[9/16] bg-black rounded-[48px] shadow-[0_0_150px_rgba(0,0,0,0.9)] border border-white/20 overflow-hidden ring-1 ring-white/10 flex flex-col">
-              <div className="absolute top-0 left-0 right-0 p-8 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between z-[210]">
+            <motion.div initial={{ opacity: 0, scale: 0.8, y: 40 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: 40 }} className="relative h-[70vh] sm:h-[80vh] aspect-[9/16] bg-black rounded-[32px] sm:rounded-[48px] shadow-[0_0_150px_rgba(0,0,0,0.9)] border border-white/20 overflow-hidden ring-1 ring-white/10 flex flex-col mt-10 sm:mt-0">
+              <div className="absolute top-0 left-0 right-0 p-4 sm:p-8 bg-gradient-to-b from-black/80 to-transparent flex items-center justify-between z-[210]">
                 <div className="space-y-1">
-                  <h3 className="text-sm font-black text-white uppercase tracking-wider truncate max-w-[200px]">{selectedVideo.filename}</h3>
+                  <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wider truncate max-w-[120px] sm:max-w-[200px]">{selectedVideo.filename}</h3>
                 </div>
-                <div className="flex items-center gap-3">
-                  <a href={`${API_BASE}${selectedVideo.url}`} download className="bg-white text-black hover:bg-yt-red hover:text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-xl"><Download size={14} /> Save</a>
-                  <button onClick={() => setSelectedVideo(null)} className="w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center backdrop-blur-3xl border border-white/20 transition-all active:scale-90"><div className="text-xl rotate-45 font-light">+</div></button>
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <a href={`${API_BASE}${selectedVideo.url}`} download className="bg-white text-black hover:bg-yt-red hover:text-white px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 sm:gap-2 shadow-xl"><Download size={14} /> <span className="hidden sm:inline">Save</span></a>
+                  <button onClick={() => setSelectedVideo(null)} className="w-8 h-8 sm:w-10 sm:h-10 bg-white/10 hover:bg-white/20 text-white rounded-lg sm:rounded-xl flex items-center justify-center backdrop-blur-3xl border border-white/20 transition-all active:scale-90"><div className="text-xl rotate-45 font-light">+</div></button>
                 </div>
               </div>
               <div className="flex-1 w-full h-full overflow-hidden">
