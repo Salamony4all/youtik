@@ -66,7 +66,7 @@ const PUBLISH_PLATFORMS = [
   { id: 'twitter',   icon: '🐦', name: 'X / Twitter',     color: '#1DA1F2' },
 ];
 
-const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, setGoogleUser, handleGoogleSignIn, handleGoogleSignOut, isGoogleSigningIn, googleLoginDetail }) => {
+const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, setGoogleUser, handleGoogleSignIn, handleGoogleSignOut, isGoogleSigningIn, googleLoginDetail, triggerExtensionSync }) => {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -310,8 +310,15 @@ const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, se
                         {platform.icon}
                       </div>
                       <div className="flex-1 text-left min-w-0">
-                        <div className="text-[13px] font-bold text-slate-800 dark:text-white">
+                        <div className="text-[13px] font-bold text-slate-800 dark:text-white flex items-center gap-2">
                           {platform.name}
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); triggerExtensionSync(platform.id); }}
+                            className="px-1.5 py-0.5 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 text-[9px] font-bold uppercase tracking-wider transition-colors active:scale-95"
+                            title={`Sync ${platform.name} cookies`}
+                          >
+                            ⚡ Sync
+                          </button>
                         </div>
                         {pStatus ? (
                           <div className={`text-[10px] font-semibold truncate ${
@@ -948,23 +955,28 @@ function App() {
     }
   };
 
-  const triggerExtensionSync = () => {
+  const [syncPlatform, setSyncPlatform] = useState('youtube');
+
+  const triggerExtensionSync = (platform = 'youtube') => {
+    setSyncPlatform(platform);
     if (!window.__YOUTIK_SYNC_EXTENSION__) {
       setShowSyncGuideModal(true);
       return;
     }
     
     setSyncingExtension(true);
-    setSyncResultMsg("Requesting YouTube session cookies...");
+    setSyncResultMsg(`Requesting ${platform} session cookies...`);
     
     const handleSyncResponse = async (event) => {
       if (event.source !== window || !event.data || event.data.type !== "YOUTIK_SYNC_RESULT") return;
       
       window.removeEventListener("message", handleSyncResponse);
       
-      const { success, cookies, error } = event.data;
+      const { success, cookies, error, platform: responsePlatform } = event.data;
+      const targetPlatform = responsePlatform || platform;
+      
       if (!success) {
-        setSyncResultMsg(`Sync failed: ${error || "Verify you are signed into YouTube!"}`);
+        setSyncResultMsg(`Sync failed: ${error || `Verify you are signed into ${targetPlatform}!`}`);
         setSyncingExtension(false);
         setTimeout(() => setSyncResultMsg(""), 8000);
         return;
@@ -972,12 +984,14 @@ function App() {
       
       try {
         setSyncResultMsg("Syncing session with cloud backend...");
-        const res = await axios.post(`${API_BASE}/auth/youtube/cookies`, {
-          cookies: cookies
+        const res = await axios.post(`${API_BASE}/api/auth/cookies/sync`, {
+          user_id: "default",
+          platform: targetPlatform,
+          cookies: typeof cookies === 'string' ? JSON.parse(cookies) : cookies
         });
         
         if (res.data && res.data.status === "success") {
-          setSyncResultMsg("🎉 YouTube session successfully synced!");
+          setSyncResultMsg(`🎉 ${targetPlatform} session successfully synced!`);
           // Fetch synced google user info to update UI
           const userRes = await axios.get(`${API_BASE}/auth/google/user`);
           if (userRes.data) {
@@ -998,7 +1012,7 @@ function App() {
     window.addEventListener("message", handleSyncResponse);
     
     // Trigger Content Script injection message
-    window.postMessage({ type: "YOUTIK_TRIGGER_SYNC" }, "*");
+    window.postMessage({ type: "YOUTIK_TRIGGER_SYNC", platform: platform }, "*");
   };
 
   const handleCookieFileUpload = (event) => {
@@ -1013,12 +1027,14 @@ function App() {
       const content = e.target.result;
       try {
         setSyncResultMsg("Syncing uploaded cookies with cloud backend...");
-        const res = await axios.post(`${API_BASE}/auth/youtube/cookies`, {
-          cookies: content
+        const res = await axios.post(`${API_BASE}/api/auth/cookies/sync`, {
+          user_id: "default",
+          platform: syncPlatform,
+          cookies: JSON.parse(content)
         });
         
         if (res.data && res.data.status === "success") {
-          setSyncResultMsg("🎉 Cookies successfully synced from file!");
+          setSyncResultMsg(`🎉 ${syncPlatform} cookies successfully synced from file!`);
           // Fetch synced google user info to update UI
           const userRes = await axios.get(`${API_BASE}/auth/google/user`);
           if (userRes.data) {
@@ -1045,12 +1061,14 @@ function App() {
     setSyncResultMsg("Syncing pasted cookies with cloud backend...");
     
     try {
-      const res = await axios.post(`${API_BASE}/auth/youtube/cookies`, {
-        cookies: pastedCookies
+      const res = await axios.post(`${API_BASE}/api/auth/cookies/sync`, {
+        user_id: "default",
+        platform: syncPlatform,
+        cookies: JSON.parse(pastedCookies)
       });
       
       if (res.data && res.data.status === "success") {
-        setSyncResultMsg("🎉 Cookies successfully synced from paste!");
+        setSyncResultMsg(`🎉 ${syncPlatform} cookies successfully synced from paste!`);
         setPastedCookies("");
         setShowSyncGuideModal(false);
         // Fetch synced google user info to update UI
@@ -1722,7 +1740,7 @@ function App() {
                             <div className="text-lg font-black tracking-tight truncate max-w-[140px] uppercase text-slate-900 dark:text-white">{clip.filename.split('_').pop()}</div>
                           </div>
                           <div className="flex items-center gap-2 transform group-hover:translate-y-0 translate-y-2 opacity-0 group-hover:opacity-100 transition-all">
-                            <PublishDropdown clip={clip} publishStatus={publishStatus} setPublishStatus={setPublishStatus} googleUser={googleUser} setGoogleUser={setGoogleUser} handleGoogleSignIn={handleGoogleSignIn} handleGoogleSignOut={handleGoogleSignOut} isGoogleSigningIn={isGoogleSigningIn} googleLoginDetail={googleLoginDetail} />
+                            <PublishDropdown clip={clip} publishStatus={publishStatus} setPublishStatus={setPublishStatus} googleUser={googleUser} setGoogleUser={setGoogleUser} handleGoogleSignIn={handleGoogleSignIn} handleGoogleSignOut={handleGoogleSignOut} isGoogleSigningIn={isGoogleSigningIn} googleLoginDetail={googleLoginDetail} triggerExtensionSync={triggerExtensionSync} />
                             <a href={`${API_BASE}${clip.url}`} download className="w-12 h-12 bg-white text-black rounded-2xl flex items-center justify-center shadow-xl hover:bg-yt-red hover:text-white transition-all"><Download size={22} /></a>
                           </div>
                         </div>
@@ -1793,7 +1811,7 @@ function App() {
               {/* Title & Badge */}
               <div className="flex flex-col gap-1 pr-6">
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-500">Secure Ingestion Setup</span>
-                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-slate-800 dark:text-white">⚡ YouTube Sync Guide</h3>
+                <h3 className="text-xl sm:text-2xl font-black tracking-tight text-slate-800 dark:text-white capitalize">⚡ {syncPlatform} Sync Guide</h3>
               </div>
 
               {/* Steps Layout */}
@@ -1830,9 +1848,9 @@ function App() {
                 <div className="flex gap-4 items-start">
                   <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-black flex-shrink-0 text-sm border border-purple-500/20">3</div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-black text-slate-800 dark:text-white mb-0.5 uppercase tracking-wide">📺 Open Logged-In YouTube Tab</h4>
+                    <h4 className="text-sm font-black text-slate-800 dark:text-white mb-0.5 uppercase tracking-wide">📺 Open Logged-In {syncPlatform} Tab</h4>
                     <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                      Ensure you have an active browser tab open at <span className="font-semibold text-slate-800 dark:text-white">youtube.com</span> where you are fully logged in. The extension will grab the secure authentication token directly from this tab.
+                      Ensure you have an active browser tab open at <span className="font-semibold text-slate-800 dark:text-white capitalize">{syncPlatform}.com</span> where you are fully logged in. The extension will grab the secure authentication token directly from this tab.
                     </p>
                   </div>
                 </div>
@@ -1843,7 +1861,7 @@ function App() {
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-black text-slate-800 dark:text-white mb-0.5 uppercase tracking-wide">⚡ Trigger Sync</h4>
                     <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                      Once loaded, return here (the extension status will switch to `CONNECTED`) and click **"Sync YouTube Session"** to securely authenticate your cloud downloads!
+                      Once loaded, return here (the extension status will switch to `CONNECTED`) and click **"Sync {syncPlatform} Session"** to securely authenticate your cloud publishing!
                     </p>
                   </div>
                 </div>

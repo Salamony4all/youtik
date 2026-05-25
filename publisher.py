@@ -358,18 +358,33 @@ async def _publish_tiktok(
         if is_headless_server:
             headless = True
 
-        # Prepare the cookie files from env if provided
-        tiktok_cookies_env = os.environ.get("TIKTOK_COOKIES")
-        if tiktok_cookies_env:
+        # Prepare the cookie files from database, falling back to env var if needed
+        from database import db
+        user_cookies = db.get_cookies(account, "tiktok")
+        
+        if user_cookies:
             try:
-                # Validate JSON then write it
-                json.loads(tiktok_cookies_env)
-                # Write to all standard expected paths
+                # Write to all standard expected paths for the uploader
                 for name in ["TK_cookies.json", f"TK_cookies_{account}.json", "TK_cookies_default.json"]:
                     with open(name, "w", encoding="utf-8") as f:
-                        f.write(tiktok_cookies_env)
+                        f.write(json.dumps(user_cookies))
             except Exception as e:
-                print("Failed to parse TIKTOK_COOKIES env var:", e)
+                print("Failed to write database cookies to disk:", e)
+        else:
+            # Fallback to the environment variable TIKTOK_COOKIES
+            tiktok_cookies_env = os.environ.get("TIKTOK_COOKIES")
+            if tiktok_cookies_env:
+                try:
+                    # Validate JSON then write it
+                    cookies_list = json.loads(tiktok_cookies_env)
+                    # Cache/seed it into the database for this user
+                    db.save_cookies(account, "tiktok", cookies_list)
+                    
+                    for name in ["TK_cookies.json", f"TK_cookies_{account}.json", "TK_cookies_default.json"]:
+                        with open(name, "w", encoding="utf-8") as f:
+                            f.write(tiktok_cookies_env)
+                except Exception as e:
+                    print("Failed to parse TIKTOK_COOKIES env var:", e)
 
         # Check if we have valid cookies on headless server
         if is_headless_server:
@@ -456,41 +471,66 @@ async def _publish_playwright(
         if is_headless_server:
             headless = True
 
-        profile_dir = str(GOOGLE_PROFILE_DIR)
-        has_profile = os.path.exists(profile_dir) and any(os.scandir(profile_dir))
-        has_env_cookies = bool(os.environ.get(f"{platform.upper()}_COOKIES"))
+        # Prepare user cookies from database, falling back to environment variables
+        from database import db
+        user_cookies = db.get_cookies(account, platform)
+        
+        if not user_cookies:
+            env_cookies_str = os.environ.get(f"{platform.upper()}_COOKIES")
+            if env_cookies_str:
+                try:
+                    user_cookies = json.loads(env_cookies_str)
+                    # Cache/seed into database for this user
+                    db.save_cookies(account, platform, user_cookies)
+                except Exception as e:
+                    print(f"Failed to parse {platform.upper()}_COOKIES env var:", e)
 
-        if not has_profile and not (is_headless_server and has_env_cookies):
+        # Check if we have dynamic cookies or local persistent context fallback
+        if not user_cookies and is_headless_server:
             _set_status(
                 job_id,
                 "ERROR",
-                f"Not signed in. Please sign in with {PLATFORMS.get(platform, {}).get('name', platform)} first. "
-                f"If running on a cloud server, make sure to configure the {platform.upper()}_COOKIES environment variable in your Railway dashboard."
+                f"No active session found for {PLATFORMS.get(platform, {}).get('name', platform)} (User ID: '{account}'). "
+                f"Please sync your account session using the You-Tik Chrome Extension or configure the {platform.upper()}_COOKIES environment variable in your Railway dashboard."
             )
             return
 
         async with async_playwright() as pw:
-            # Reuse the same persistent browser profile that was used during login
-            context = await pw.chromium.launch_persistent_context(
-                user_data_dir=profile_dir,
-                headless=headless,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-sandbox",
-                    "--disable-infobars",
-                    "--disable-dev-shm-usage",
-                ],
-                viewport={"width": 1280, "height": 720},
-                locale="en-US",
-            )
-
-            # Inject cookies if they exist in environment (for headless cloud)
-            if is_headless_server and os.environ.get(f"{platform.upper()}_COOKIES"):
-                try:
-                    cookies = json.loads(os.environ.get(f"{platform.upper()}_COOKIES"))
-                    await context.add_cookies(cookies)
-                except Exception as e:
-                    print(f"Failed to inject {platform.upper()}_COOKIES:", e)
+            browser = None
+            if user_cookies:
+                # Ephemeral, isolated browser context for this specific user
+                _set_status(job_id, "LAUNCHING", f"Launching clean ephemeral browser for {platform}…")
+                browser = await pw.chromium.launch(
+                    headless=headless,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                        "--disable-infobars",
+                        "--disable-dev-shm-usage",
+                    ],
+                )
+                context = await browser.new_context(
+                    viewport={"width": 1280, "height": 720},
+                    locale="en-US",
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                )
+                await context.add_cookies(user_cookies)
+            else:
+                # Local headed fallback (Persistent Profile Mode)
+                _set_status(job_id, "LAUNCHING", f"Launching local persistent profile browser for {platform}…")
+                profile_dir = str(GOOGLE_PROFILE_DIR)
+                context = await pw.chromium.launch_persistent_context(
+                    user_data_dir=profile_dir,
+                    headless=headless,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                        "--disable-infobars",
+                        "--disable-dev-shm-usage",
+                    ],
+                    viewport={"width": 1280, "height": 720},
+                    locale="en-US",
+                )
 
             await context.add_init_script(_STEALTH_SCRIPT)
 
@@ -529,7 +569,10 @@ async def _publish_playwright(
                     _set_status(job_id, "ERROR", f"{platform} upload failed: {upload_exc}")
                     raise upload_exc
 
-            await context.close()
+            if browser:
+                await browser.close()
+            else:
+                await context.close()
 
     except Exception as exc:
         _set_status(job_id, "ERROR", f"{platform} upload session failed: {exc}")

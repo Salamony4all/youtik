@@ -21,6 +21,7 @@ except AttributeError:
     pass
 
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 def cleanup_workspace(full=True):
     dirs_to_clean = ["temp"]
@@ -575,6 +576,12 @@ class CookieSyncRequest(BaseModel):
     cookies: str
 
 
+class MultiUserCookieSyncRequest(BaseModel):
+    user_id: str
+    platform: str
+    cookies: List[Dict]
+
+
 @app.post("/auth/youtube/cookies")
 async def sync_youtube_cookies(req: CookieSyncRequest):
     """Saves YouTube cookies synced from the user's browser extension."""
@@ -584,6 +591,14 @@ async def sync_youtube_cookies(req: CookieSyncRequest):
         cookie_path = "youtube_cookies.txt"
         with open(cookie_path, "w", encoding="utf-8") as f:
             f.write(req.cookies)
+            
+        # Also save to the database for 'default' user for backward compatibility
+        try:
+            from database import db
+            cookies_list = json.loads(req.cookies)
+            db.save_cookies("default", "youtube", cookies_list)
+        except Exception as e:
+            print("Failed to sync to database:", e)
             
         # Update google_master.json synthetic authentication state
         master_data = {
@@ -599,6 +614,31 @@ async def sync_youtube_cookies(req: CookieSyncRequest):
         return {"status": "success", "message": "YouTube session successfully synced!"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to sync cookies: {str(e)}")
+
+
+@app.post("/api/auth/cookies/sync")
+async def sync_cookies(req: MultiUserCookieSyncRequest):
+    """Saves user session cookies dynamically into the database for secure publishing."""
+    try:
+        from database import db
+        success = db.save_cookies(req.user_id, req.platform.lower(), req.cookies)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to save cookies to database.")
+        
+        # Also support backward compatibility by writing files for default user
+        if req.user_id == "default":
+            if req.platform.lower() == "youtube":
+                cookie_path = "youtube_cookies.txt"
+                with open(cookie_path, "w", encoding="utf-8") as f:
+                    f.write(json.dumps(req.cookies))
+            elif req.platform.lower() == "tiktok":
+                for name in ["TK_cookies.json", "TK_cookies_default.json"]:
+                    with open(name, "w", encoding="utf-8") as f:
+                        f.write(json.dumps(req.cookies))
+        
+        return {"status": "success", "message": f"Successfully synced {req.platform.upper()} session for {req.user_id}!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/extension/download")
