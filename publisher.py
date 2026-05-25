@@ -447,6 +447,32 @@ async def _run_google_login(job_id: str):
                 login_jobs[job_id]["status"] = "AUTHENTICATED"
                 login_jobs[job_id]["detail"] = f"Signed in as {name}"
                 login_jobs[job_id]["user"] = master_data
+
+                # Export cookies to workspace root so yt-dlp can use them natively
+                try:
+                    cookies = await context.cookies()
+                    lines = [
+                        "# Netscape HTTP Cookie File",
+                        "# http://curl.haxx.se/rfc/cookie_spec.html",
+                        "# This is a generated file! Do not edit.",
+                        ""
+                    ]
+                    for c in cookies:
+                        domain = c.get("domain", "")
+                        flag = "TRUE" if domain.startswith(".") else "FALSE"
+                        path = c.get("path", "/")
+                        secure = "TRUE" if c.get("secure", False) else "FALSE"
+                        expiry = str(int(c.get("expires", 0)))
+                        cname = c.get("name", "")
+                        value = c.get("value", "")
+                        lines.append(f"{domain}\t{flag}\t{path}\t{secure}\t{expiry}\t{cname}\t{value}")
+                    
+                    with open("youtube_cookies.txt", "w", encoding="utf-8") as f:
+                        f.write("\n".join(lines))
+                    print(f"[AUTH] Exported {len(cookies)} cookies to youtube_cookies.txt for yt-dlp")
+                except Exception as e:
+                    print(f"[AUTH] Failed to export cookies: {e}")
+
             else:
                 login_jobs[job_id]["status"] = "TIMEOUT"
                 login_jobs[job_id]["detail"] = "Login timed out (5 min). Please try again."
