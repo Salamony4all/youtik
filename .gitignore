@@ -36,6 +36,7 @@ output/
 !frontend/package.json
 !frontend/package-lock.json
 !frontend/tsconfig.json
+!you-tik-sync-extension/manifest.json
 !utik v*.md
 !project_analysis.md
 

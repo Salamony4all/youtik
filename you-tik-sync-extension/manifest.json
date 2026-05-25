@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "You-Tik Session Sync",
+  "version": "1.0",
+  "description": "Automatically syncs YouTube, TikTok, Instagram, and X/Twitter session cookies with You-Tik Studio for secure, automated cloud publishing and downloads.",
+  "icons": {
+    "128": "icon128.png"
+  },
+  "permissions": ["cookies"],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "*://*.google.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.instagram.com/*",
+    "*://*.twitter.com/*",
+    "*://*.x.com/*"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost/*",
+      "https://*.up.railway.app/*"
+    ]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "https://*.up.railway.app/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_icon": "icon128.png",
+    "default_title": "You-Tik Session Sync"
+  }
+}
