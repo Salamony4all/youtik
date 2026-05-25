@@ -710,66 +710,43 @@ import asyncio
 
 @app.websocket("/api/vnc/{job_id}")
 async def vnc_proxy(websocket: WebSocket, job_id: str):
-    """
-    Proxies a WebSocket connection from the frontend's noVNC client
-    directly to the local x11vnc TCP server running on port 5900.
-    """
     await websocket.accept(subprotocol="binary")
-    print(f"[VNC Proxy] WebSocket accepted for job {job_id}", flush=True)
+    print(f"[VNC Proxy] WebSocket accepted for job {job_id}, proxying to websockify...", flush=True)
     
-    # 5900 is the default x11vnc port used by VirtualDisplay in publisher.py
-    vnc_port = 5900
-    
+    import websockets
     try:
-        reader, writer = await asyncio.open_connection("127.0.0.1", vnc_port)
-        print(f"[VNC Proxy] Connected to local x11vnc on port {vnc_port}", flush=True)
+        async with websockets.connect("ws://127.0.0.1:6080", subprotocols=["binary"]) as ws:
+            async def client_to_server():
+                try:
+                    while True:
+                        data = await websocket.receive()
+                        if "bytes" in data:
+                            await ws.send(data["bytes"])
+                        elif "text" in data:
+                            await ws.send(data["text"])
+                        elif data.get("type") == "websocket.disconnect":
+                            break
+                except Exception as e:
+                    print(f"[VNC] C2S Error: {e}", flush=True)
+
+            async def server_to_client():
+                try:
+                    while True:
+                        data = await ws.recv()
+                        if isinstance(data, bytes):
+                            await websocket.send_bytes(data)
+                        else:
+                            await websocket.send_text(data)
+                except Exception as e:
+                    print(f"[VNC] S2C Error: {e}", flush=True)
+
+            await asyncio.gather(client_to_server(), server_to_client())
     except Exception as e:
-        print(f"[VNC Proxy] Could not connect to local x11vnc on port {vnc_port}: {e}", flush=True)
+        print(f"[VNC Proxy] Error connecting to websockify: {e}", flush=True)
         try:
             await websocket.close()
         except:
             pass
-        return
-
-    async def tcp_to_ws():
-        try:
-            print("[VNC Proxy] Starting tcp_to_ws loop...", flush=True)
-            while True:
-                data = await reader.read(8192)
-                if not data:
-                    print("[VNC Proxy] TCP connection closed by x11vnc.", flush=True)
-                    break
-                await websocket.send_bytes(data)
-        except Exception as e:
-            print(f"[VNC Proxy] TCP to WS error: {e}", flush=True)
-
-    async def ws_to_tcp():
-        try:
-            while True:
-                message = await websocket.receive()
-                if "bytes" in message:
-                    writer.write(message["bytes"])
-                    await writer.drain()
-                elif "text" in message:
-                    import base64
-                    writer.write(base64.b64decode(message["text"]))
-                    await writer.drain()
-                elif message["type"] == "websocket.disconnect":
-                    print("[VNC Proxy] WebSocket disconnected by client.", flush=True)
-                    break
-        except WebSocketDisconnect:
-            print("[VNC Proxy] WebSocket disconnected by client.", flush=True)
-        except Exception as e:
-            print(f"[VNC Proxy] WS to TCP error: {e}", flush=True)
-
-    # Run both proxy directions concurrently
-    await asyncio.gather(tcp_to_ws(), ws_to_tcp())
-    
-    # Clean up connections when done
-    try:
-        writer.close()
-        await writer.wait_closed()
-    except Exception:
         pass
     
     try:
