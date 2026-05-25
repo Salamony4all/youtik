@@ -514,7 +514,43 @@ async def _publish_playwright(
                     locale="en-US",
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 )
-                await context.add_cookies(user_cookies)
+                # Sanitize cookies for Playwright compatibility
+                sanitized_cookies = []
+                for cookie in user_cookies:
+                    # Construct clean cookie compatible with Playwright
+                    c = {
+                        "name": str(cookie.get("name", "")),
+                        "value": str(cookie.get("value", "")),
+                        "domain": str(cookie.get("domain", "")),
+                        "path": str(cookie.get("path", "/")),
+                    }
+                    
+                    expires = cookie.get("expires")
+                    if expires is not None:
+                        try:
+                            c["expires"] = float(expires)
+                        except (ValueError, TypeError):
+                            pass
+                            
+                    if "httpOnly" in cookie:
+                        c["httpOnly"] = bool(cookie["httpOnly"])
+                    if "secure" in cookie:
+                        c["secure"] = bool(cookie["secure"])
+                        
+                    # Sanitize sameSite to case-sensitive Strict | Lax | None
+                    same_site = cookie.get("sameSite")
+                    if same_site:
+                        same_site_str = str(same_site).lower()
+                        if same_site_str == "no_restriction":
+                            c["sameSite"] = "None"
+                        elif same_site_str in ["lax", "strict", "none"]:
+                            c["sameSite"] = same_site_str.capitalize()
+                        else:
+                            # Skip invalid sameSite properties to let browser handle them
+                            pass
+                    sanitized_cookies.append(c)
+
+                await context.add_cookies(sanitized_cookies)
             else:
                 # Local headed fallback (Persistent Profile Mode)
                 _set_status(job_id, "LAUNCHING", f"Launching local persistent profile browser for {platform}…")

@@ -23,6 +23,30 @@ except AttributeError:
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+# Self-healing auto-installation of Playwright browser binaries
+try:
+    print("[SYSTEM] Verifying Playwright browser binaries...")
+    subprocess.run(
+        [sys.executable, "-m", "playwright", "install", "chromium"],
+        check=True,
+        capture_output=True,
+        text=True
+    )
+    print("[SYSTEM] Playwright browser check completed successfully.")
+    
+    # Try installing system dependencies
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "playwright", "install-deps", "chromium"],
+            check=False,
+            capture_output=True
+        )
+    except Exception:
+        pass
+except Exception as pw_install_err:
+    print(f"[SYSTEM] Playwright browser auto-installation warning: {pw_install_err}", file=sys.stderr)
+
+
 def cleanup_workspace(full=True):
     dirs_to_clean = ["temp"]
     if full:
