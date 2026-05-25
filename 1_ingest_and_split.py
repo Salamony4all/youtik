@@ -2,6 +2,7 @@ import os
 import yt_dlp
 import json
 import torch
+import subprocess
 from typing import Dict, Optional
 import gc
 import shutil
@@ -645,92 +646,92 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
     else:
         player_clients = ['android', 'web']
 
-    ydl_opts = {
-        # Multi-tier format fallback: prefer audio-only, then any stream
-        'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
-        'outtmpl': f"{audio_base}.%(ext)s", 
-        'noplaylist': True,
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'wav',
-            'preferredquality': '192',
-        }],
-        'quiet': False,
-        'js_runtimes': {'node': {}},
-        'remote_components': ['ejs:github'],
-        'extractor_args': {
-            'youtube': {
-                'player_client': player_clients
-            }
-        },
-        'external_downloader_args': {
-            'ffmpeg_i': ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5']
-        }
-    }
+    ydl_format = 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best'
     
     proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
     if proxy_url:
-        ydl_opts['proxy'] = proxy_url
         log(f"[INGEST] Injecting proxy into yt-dlp: {proxy_url}")
     
     if cookie_file:
-        ydl_opts['cookiefile'] = cookie_file
         log(f"[INGEST] Injecting cookies into yt-dlp from: {cookie_file}")
         log(f"[INGEST] Using cookie-compatible player clients: {player_clients}")
 
-    
     metadata = {
         "song_name": None,
         "artist_name": None
     }
 
-    try:
-        extract_opts = {**ydl_opts, 'quiet': True, 'simulate': True}
-        with yt_dlp.YoutubeDL(extract_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            
-            song = info.get('track') or info.get('alt_title')
-            artist = info.get('artist') or info.get('creator') or info.get('uploader')
-            title = info.get('title', "")
-            
-            if " - " in title:
-                parts = title.split(" - ", 1)
-                p1 = parts[0].strip()
-                p2 = parts[1].strip()
-                
-                suffixes = [
-                    " (Official Video)", " [Official Music Video]", " (Lyrics)", 
-                    " (Offizielles Video)", " (Official Audio)", " | Official Video",
-                    " - Official Video", " [Lyrics]", " (HD)", " (4K)", " | Audio",
-                    " (OFFICIAL VIDEO)", " (Official Music Video)", " (Lyric Video)",
-                    " | official video", " [OFFICIAL VIDEO]", " (OFFICIAL AUDIO)"
-                ]
-                for s in suffixes:
-                    p1 = p1.replace(s, "").strip()
-                    p2 = p2.replace(s, "").strip()
-                
-                uploader = info.get('uploader', "").lower()
-                if not artist:
-                    if uploader in p1.lower() or p1.lower() in uploader:
-                        artist = p1
-                        song = song or p2
-                    elif uploader in p2.lower() or p2.lower() in uploader:
-                        artist = p2
-                        song = song or p1
-                    else:
-                        artist = p1
-                        song = song or p2
-            else:
-                if not song: song = title
-                if not artist: artist = info.get('uploader')
+    def build_yt_cmd(is_meta=False, fmt=None):
+        cmd = ["yt-dlp"]
+        if is_meta:
+            cmd.extend(["--dump-json", "--no-playlist", "--quiet"])
+        else:
+            cmd.extend([
+                "-f", fmt,
+                "-o", f"{audio_base}.%(ext)s",
+                "--no-playlist",
+                "--extract-audio",
+                "--audio-format", "wav",
+                "--audio-quality", "192",
+                "--downloader", "ffmpeg",
+                "--downloader-args", "ffmpeg:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+                "--remote-components", "ejs:github"
+            ])
+        if proxy_url:
+            cmd.extend(["--proxy", proxy_url])
+        if cookie_file:
+            cmd.extend(["--cookies", cookie_file])
+            cmd.extend(["--extractor-args", f"youtube:player_client={','.join(player_clients)}"])
+        cmd.append(url)
+        return cmd
 
-            if song:
-                for s in [" (Official Video)", " [Official Video]", " (Lyrics)", " | Official", " (Official Music Video)"]:
-                    song = song.replace(s, "").strip()
+    try:
+        cmd_meta = build_yt_cmd(is_meta=True)
+        result = subprocess.run(cmd_meta, capture_output=True, text=True, check=True)
+        info = json.loads(result.stdout)
+        
+        song = info.get('track') or info.get('alt_title')
+        artist = info.get('artist') or info.get('creator') or info.get('uploader')
+        title = info.get('title', "")
+        
+        if " - " in title:
+            parts = title.split(" - ", 1)
+            p1 = parts[0].strip()
+            p2 = parts[1].strip()
             
-            metadata["song_name"] = song
-            metadata["artist_name"] = artist
-            print(f"[METADATA] Auto-detected: {song} by {artist}")
+            suffixes = [
+                " (Official Video)", " [Official Music Video]", " (Lyrics)", 
+                " (Offizielles Video)", " (Official Audio)", " | Official Video",
+                " - Official Video", " [Lyrics]", " (HD)", " (4K)", " | Audio",
+                " (OFFICIAL VIDEO)", " (Official Music Video)", " (Lyric Video)",
+                " | official video", " [OFFICIAL VIDEO]", " (OFFICIAL AUDIO)"
+            ]
+            for s in suffixes:
+                p1 = p1.replace(s, "").strip()
+                p2 = p2.replace(s, "").strip()
+            
+            uploader = info.get('uploader', "").lower()
+            if not artist:
+                if uploader in p1.lower() or p1.lower() in uploader:
+                    artist = p1
+                    song = song or p2
+                elif uploader in p2.lower() or p2.lower() in uploader:
+                    artist = p2
+                    song = song or p1
+                else:
+                    artist = p1
+                    song = song or p2
+        else:
+            if not song: song = title
+            if not artist: artist = info.get('uploader')
+
+        if song:
+            for s in [" (Official Video)", " [Official Video]", " (Lyrics)", " | Official", " (Official Music Video)"]:
+                song = song.replace(s, "").strip()
+        
+        metadata["song_name"] = song
+        metadata["artist_name"] = artist
+        print(f"[METADATA] Auto-detected: {song} by {artist}")
     except Exception as e:
         print(f"[WARNING] Metadata extraction failed: {e}")
 
@@ -738,26 +739,34 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
     last_error = None
     for attempt in range(3):
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            ydl_succeeded = True
-            break
-        except Exception as e:
-            last_error = e
-            err_str = str(e)
-            if attempt < 2 and ("WinError 32" in err_str or "Unable to rename file" in err_str):
-                log(f"File lock detected during yt-dlp download/rename. Retrying in 5s... ({attempt + 1}/3)")
-                time.sleep(5)
-            elif attempt < 2 and "Requested format is not available" in err_str:
-                log(f"[RETRY] Format not available with current selector. Relaxing to 'best' on attempt {attempt + 2}/3...")
-                ydl_opts['format'] = 'best'
-                time.sleep(2)
-            elif "Sign in to confirm" in err_str or "cookies" in err_str.lower() or "Requested format is not available" in err_str:
-                # Bot detection or format issue — break to try Playwright fallback
-                log("[WARNING] yt-dlp blocked by YouTube bot detection. Will try Playwright fallback...")
+            cmd_dl = build_yt_cmd(is_meta=False, fmt=ydl_format)
+            log(f"[INGEST] Running yt-dlp command: {' '.join(cmd_dl[:4])} ...")
+            # We capture stderr to read errors, stdout flows to console so user sees progress
+            result = subprocess.run(cmd_dl, stderr=subprocess.PIPE, text=True)
+            if result.returncode == 0:
+                ydl_succeeded = True
                 break
             else:
-                break  # Unknown error — try Playwright fallback anyway
+                last_error = Exception(f"yt-dlp failed with return code {result.returncode}")
+                err_str = result.stderr
+                print(f"[ERROR] yt-dlp stderr: {err_str}")
+                
+                if attempt < 2 and ("WinError 32" in err_str or "Unable to rename file" in err_str):
+                    log(f"File lock detected during yt-dlp download/rename. Retrying in 5s... ({attempt + 1}/3)")
+                    time.sleep(5)
+                elif attempt < 2 and "Requested format is not available" in err_str:
+                    log(f"[RETRY] Format not available with current selector. Relaxing to 'best' on attempt {attempt + 2}/3...")
+                    ydl_format = 'best'
+                    time.sleep(2)
+                elif "Sign in to confirm" in err_str or "cookies" in err_str.lower() or "Requested format is not available" in err_str or "bot" in err_str.lower() or "403" in err_str:
+                    # Bot detection or format issue — break to try Playwright fallback
+                    log("[WARNING] yt-dlp blocked by YouTube bot detection. Will try Playwright fallback...")
+                    break
+                else:
+                    break  # Unknown error — try Playwright fallback anyway
+        except Exception as e:
+            last_error = e
+            break
 
     # If yt-dlp failed, try the Playwright browser fallback
     wav_path = f"{audio_base}.wav"
