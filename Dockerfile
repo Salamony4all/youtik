@@ -26,8 +26,7 @@ RUN pip install --upgrade pip setuptools wheel && \
     pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 # Install Playwright Chromium and its system dependencies
-RUN playwright install chromium && \
-    playwright install-deps chromium
+RUN playwright install --with-deps chromium
 
 # Copy application source code
 COPY . .

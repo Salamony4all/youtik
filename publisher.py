@@ -695,7 +695,7 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
                 _set_status(job_id, "UPLOADING", "Reached visibility options.")
                 break
                 
-            next_btn = page.locator("#next-button, ytcp-button#next-button, text=Next").first
+            next_btn = page.locator("#next-button, ytcp-button#next-button, button:has-text('Next')").first
             if await next_btn.is_visible(timeout=3000):
                 is_disabled = await next_btn.get_attribute("disabled")
                 if is_disabled is not None:
