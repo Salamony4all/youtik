@@ -637,14 +637,8 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
     if not cookie_file:
         log("[WARNING] No YouTube cookies found (tried youtube_cookies.txt, cookies.json, and YOUTUBE_COOKIES environment variable). Datacenter IPs will likely be blocked!")
 
-    # Use cookie-compatible clients when cookies are available.
-    # 'android' does NOT support cookies and gets skipped by yt-dlp, causing
-    # "Requested format is not available" on datacenter IPs where the fallback
-    # web client alone can't find audio-only streams.
-    if cookie_file:
-        player_clients = ['web_creator', 'mweb', 'web']
-    else:
-        player_clients = ['android', 'web']
+    # Always use cookie-compatible and PO-token compatible clients to utilize the rustypipe plugin
+    player_clients = ['web_creator', 'mweb', 'web']
 
     ydl_format = 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best'
     
