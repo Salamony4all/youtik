@@ -656,7 +656,7 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
     }
 
     def build_yt_cmd(is_meta=False, fmt=None):
-        cmd = ["yt-dlp"]
+        cmd = ["yt-dlp", "--js-runtimes", "node"]
         if is_meta:
             cmd.extend(["--dump-json", "--no-playlist", "--quiet"])
         else:
