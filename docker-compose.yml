@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - YOUTUBE_PROXY=socks5://warp-proxy:1080
+      # You can add other environment variables like YOUTUBE_COOKIES here for local testing
+    volumes:
+      - ./temp:/app/temp
+      - ./output:/app/output
+    depends_on:
+      - warp-proxy
+
+  warp-proxy:
+    image: monius/docker-warp-socks:latest
+    ports:
+      - "1080:1080"
+    restart: unless-stopped
