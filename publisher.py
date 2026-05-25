@@ -702,7 +702,7 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
                     _set_status(job_id, "UPLOADING", "Waiting for Next button to be enabled…")
                     await page.wait_for_timeout(1000)
                     continue
-                await next_btn.click()
+                await next_btn.click(force=True)
                 await page.wait_for_timeout(2000)
             else:
                 await page.wait_for_timeout(1000)
@@ -712,19 +712,19 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
             _set_status(job_id, "UPLOADING", "Selecting Private visibility (Save as Draft)…")
             private_radio = page.locator("tp-yt-paper-radio-button[name='PRIVATE'], #private-radio-button").first
             if await private_radio.is_visible(timeout=5000):
-                await private_radio.click()
+                await private_radio.click(force=True)
         else:
             _set_status(job_id, "UPLOADING", "Selecting Public visibility…")
             public_radio = page.locator("tp-yt-paper-radio-button[name='PUBLIC'], #public-radio-button").first
             if await public_radio.is_visible(timeout=5000):
-                await public_radio.click()
+                await public_radio.click(force=True)
 
         await page.wait_for_timeout(1500)
 
         # Click the done/publish button
         done_btn = page.locator("#done-button, ytcp-button#done-button, ytcp-button:has-text('Save'), ytcp-button:has-text('Publish')").first
         if await done_btn.is_visible(timeout=5000):
-            await done_btn.click()
+            await done_btn.click(force=True)
             await page.wait_for_timeout(5000)
             _set_status(job_id, "PUBLISHED", "Video successfully uploaded and saved to YouTube Shorts!")
         else:

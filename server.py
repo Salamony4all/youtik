@@ -26,13 +26,17 @@ from fastapi.responses import FileResponse
 # Self-healing auto-installation of Playwright browser binaries
 try:
     print("[SYSTEM] Verifying Playwright browser binaries...")
+    # Force a local writable path for Playwright browsers (fixes Railway/Render Nixpacks read-only errors)
+    pw_path = os.path.join(os.getcwd(), "pw-browsers")
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = pw_path
+    
     subprocess.run(
         [sys.executable, "-m", "playwright", "install", "chromium"],
         check=True,
         capture_output=True,
         text=True
     )
-    print("[SYSTEM] Playwright browser check completed successfully.")
+    print(f"[SYSTEM] Playwright browser check completed successfully (Path: {pw_path}).")
     
     # Try installing system dependencies
     try:
