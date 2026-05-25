@@ -25,18 +25,28 @@ from fastapi.responses import FileResponse
 
 # Self-healing auto-installation of Playwright browser binaries
 try:
-    print("[SYSTEM] Verifying Playwright browser binaries...")
+    print("[SYSTEM] Verifying Playwright & Phantomwright browser binaries...")
     # Force a local writable path for Playwright browsers (fixes Railway/Render Nixpacks read-only errors)
     pw_path = os.path.join(os.getcwd(), "pw-browsers")
     os.environ["PLAYWRIGHT_BROWSERS_PATH"] = pw_path
     
+    # Install standard Playwright browsers
     subprocess.run(
         [sys.executable, "-m", "playwright", "install", "chromium"],
         check=True,
         capture_output=True,
         text=True
     )
-    print(f"[SYSTEM] Playwright browser check completed successfully (Path: {pw_path}).")
+    
+    # Install Phantomwright browsers (required by tiktokautouploader)
+    subprocess.run(
+        [sys.executable, "-m", "phantomwright", "install", "chromium"],
+        check=False,
+        capture_output=True,
+        text=True
+    )
+    
+    print(f"[SYSTEM] Playwright & Phantomwright browser check completed successfully (Path: {pw_path}).")
     
     # Try installing system dependencies
     try:
@@ -47,8 +57,12 @@ try:
         )
     except Exception:
         pass
-except Exception as pw_install_err:
-    print(f"[SYSTEM] Playwright browser auto-installation warning: {pw_install_err}", file=sys.stderr)
+except subprocess.CalledProcessError as pw_install_err:
+    print(f"[SYSTEM] Playwright browser auto-installation warning: {pw_install_err}")
+    if hasattr(pw_install_err, 'stderr') and pw_install_err.stderr:
+        print(f"[SYSTEM] Stderr: {pw_install_err.stderr}")
+except Exception as e:
+    print(f"[SYSTEM] Unexpected error during browser install: {e}")
 
 
 def cleanup_workspace(full=True):

@@ -33,8 +33,9 @@ RUN curl -L -o /tmp/rustypipe.tar.xz https://codeberg.org/ThetaDev/rustypipe-bot
     chmod +x /usr/local/bin/rustypipe-botguard && \
     rm /tmp/rustypipe.tar.xz
 
-# Install Playwright Chromium and its system dependencies
-RUN playwright install --with-deps chromium
+# Install Playwright & Phantomwright Chromium and its system dependencies
+RUN playwright install --with-deps chromium && \
+    python -m phantomwright install chromium
 
 # Copy application source code
 COPY . .

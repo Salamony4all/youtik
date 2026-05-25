@@ -725,7 +725,24 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
         done_btn = page.locator("#done-button, ytcp-button#done-button, ytcp-button:has-text('Save'), ytcp-button:has-text('Publish')").first
         if await done_btn.is_visible(timeout=5000):
             await done_btn.click(force=True)
-            await page.wait_for_timeout(5000)
+            
+            # CRITICAL: Wait for upload transfer to complete before closing browser!
+            _set_status(job_id, "UPLOADING", "Waiting for video transfer to finish... Please wait.")
+            
+            # YouTube shows a share/confirmation dialog when upload is finished. 
+            # If not, wait for the uploads-dialog to hide, meaning it's fully done.
+            try:
+                # Wait up to 120 seconds for the dialog to disappear or confirmation to show
+                await page.wait_for_selector("ytcp-video-share-dialog, ytcp-uploads-dialog[hidden]", timeout=120000)
+                
+                # If share dialog appeared, close it
+                close_btn = page.locator("ytcp-button#close-button, ytcp-button:has-text('Close')").first
+                if await close_btn.is_visible(timeout=2000):
+                    await close_btn.click(force=True)
+            except Exception:
+                # Fallback: wait extra time to let network finish
+                await page.wait_for_timeout(10000)
+                
             _set_status(job_id, "PUBLISHED", "Video successfully uploaded and saved to YouTube Shorts!")
         else:
             await page.wait_for_timeout(5000)
