@@ -734,21 +734,30 @@ async def vnc_proxy(websocket: WebSocket, job_id: str):
             while True:
                 data = await reader.read(8192)
                 if not data:
+                    print("[VNC Proxy] TCP connection closed by x11vnc.", flush=True)
                     break
                 await websocket.send_bytes(data)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[VNC Proxy] TCP to WS error: {e}", flush=True)
 
     async def ws_to_tcp():
         try:
             while True:
-                data = await websocket.receive_bytes()
-                writer.write(data)
-                await writer.drain()
+                message = await websocket.receive()
+                if "bytes" in message:
+                    writer.write(message["bytes"])
+                    await writer.drain()
+                elif "text" in message:
+                    import base64
+                    writer.write(base64.b64decode(message["text"]))
+                    await writer.drain()
+                elif message["type"] == "websocket.disconnect":
+                    print("[VNC Proxy] WebSocket disconnected by client.", flush=True)
+                    break
         except WebSocketDisconnect:
-            pass
-        except Exception:
-            pass
+            print("[VNC Proxy] WebSocket disconnected by client.", flush=True)
+        except Exception as e:
+            print(f"[VNC Proxy] WS to TCP error: {e}", flush=True)
 
     # Run both proxy directions concurrently
     await asyncio.gather(tcp_to_ws(), ws_to_tcp())
