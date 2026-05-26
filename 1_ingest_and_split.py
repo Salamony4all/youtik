@@ -298,14 +298,13 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
         url_str = response.url
         content_type = response.headers.get("content-type", "")
         
-        # Look for audio streams (DASH audio segments)
-        if "mime=audio" in url_str or "audio/mp4" in content_type or "audio/webm" in content_type:
-            if not captured_url["audio"]:
-                captured_url["audio"] = url_str
-        # Also capture video as fallback
-        elif "mime=video" in url_str and "itag=" in url_str:
-            if not captured_url["video"]:
-                captured_url["video"] = url_str
+        if "videoplayback" in url_str:
+            if "mime=audio" in url_str or "audio/" in content_type:
+                if not captured_url["audio"]:
+                    captured_url["audio"] = url_str
+            else:
+                if not captured_url["video"]:
+                    captured_url["video"] = url_str
 
     try:
         with sync_playwright() as pw:
@@ -322,6 +321,7 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                         "--disable-infobars",
                         "--disable-dev-shm-usage",
                         "--disable-gpu",
+                        "--autoplay-policy=no-user-gesture-required",
                     ],
                     "viewport": {"width": 1280, "height": 720},
                     "locale": "en-US",
@@ -350,6 +350,7 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                         "--disable-infobars",
                         "--disable-dev-shm-usage",
                         "--disable-gpu",
+                        "--autoplay-policy=no-user-gesture-required",
                     ],
                 }
                 proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
@@ -435,6 +436,8 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                                 if (any) return any.url;
                             }
                         }
+                        const v = document.querySelector('video');
+                        if (v && v.src && !v.src.startsWith('blob:')) return v.src;
                         return null;
                     }
                 """)
