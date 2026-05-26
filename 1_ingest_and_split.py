@@ -326,19 +326,6 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                     "viewport": {"width": 1280, "height": 720},
                     "locale": "en-US",
                 }
-                proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
-                if proxy_url:
-                    if proxy_url.startswith("socks5h://"):
-                        proxy_url = proxy_url.replace("socks5h://", "socks5://")
-                    import urllib.parse
-                    parsed = urllib.parse.urlparse(proxy_url)
-                    server_address = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}" if parsed.port else f"{parsed.scheme}://{parsed.hostname}"
-                    pw_proxy = {"server": server_address}
-                    if parsed.username and parsed.password:
-                        pw_proxy["username"] = parsed.username
-                        pw_proxy["password"] = parsed.password
-                    launch_kwargs["proxy"] = pw_proxy
-                    log(f"[FALLBACK] Injecting proxy into Playwright: {server_address}")
                 context = pw.chromium.launch_persistent_context(**launch_kwargs)
             else:
                 log("[FALLBACK] No Google profile. Launching Chromium with YOUTUBE_COOKIES...")
@@ -353,19 +340,6 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                         "--autoplay-policy=no-user-gesture-required",
                     ],
                 }
-                proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
-                if proxy_url:
-                    if proxy_url.startswith("socks5h://"):
-                        proxy_url = proxy_url.replace("socks5h://", "socks5://")
-                    import urllib.parse
-                    parsed = urllib.parse.urlparse(proxy_url)
-                    server_address = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}" if parsed.port else f"{parsed.scheme}://{parsed.hostname}"
-                    pw_proxy = {"server": server_address}
-                    if parsed.username and parsed.password:
-                        pw_proxy["username"] = parsed.username
-                        pw_proxy["password"] = parsed.password
-                    launch_kwargs["proxy"] = pw_proxy
-                    log(f"[FALLBACK] Injecting proxy into Playwright: {server_address}")
                 browser = pw.chromium.launch(**launch_kwargs)
                 context = browser.new_context(
                     viewport={"width": 1280, "height": 720},
@@ -527,10 +501,6 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                             'ffmpeg_i': ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5']
                         }
                     }
-                    proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
-                    if proxy_url:
-                        ydl_opts['proxy'] = proxy_url
-                        log(f"[FALLBACK] Injecting proxy into retry yt-dlp: {proxy_url}")
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         ydl.download([url])
                     log("[FALLBACK] yt-dlp succeeded with browser-extracted cookies!")
@@ -650,10 +620,6 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
 
     ydl_format = 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best'
     
-    proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
-    if proxy_url:
-        log(f"[INGEST] Injecting proxy into yt-dlp: {proxy_url}")
-    
     if cookie_file:
         log(f"[INGEST] Injecting cookies into yt-dlp from: {cookie_file}")
         log(f"[INGEST] Using cookie-compatible player clients: {player_clients}")
@@ -680,8 +646,6 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
                 "--hls-prefer-native",
                 "--remote-components", "ejs:github"
             ])
-        if proxy_url:
-            cmd.extend(["--proxy", proxy_url])
         if cookie_file:
             cmd.extend(["--cookies", cookie_file])
             cmd.extend(["--extractor-args", f"youtube:player_client={','.join(player_clients)}"])
