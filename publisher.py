@@ -218,6 +218,7 @@ class VirtualDisplay:
             print(f"[VNC] WARNING: Failed to start websockify: {e}")
 
         self._running = True
+        os.environ["DISPLAY"] = self.display
         print("[VNC] Virtual display stack ready ✓")
 
     @property
@@ -680,6 +681,14 @@ async def _publish_tiktok(
         )
     except Exception as exc:
         _set_status(job_id, "ERROR", f"TikTok upload failed: {exc}")
+    finally:
+        if virtual_display:
+            try:
+                await virtual_display.release()
+            except Exception:
+                pass
+        if job_id in publish_jobs:
+            publish_jobs[job_id]["vnc_active"] = False
 
 
 async def _publish_playwright(
