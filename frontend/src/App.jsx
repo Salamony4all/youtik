@@ -1456,6 +1456,49 @@ function App() {
   const [publishStatus, setPublishStatus] = useState({});
   const currentStepIndex = steps.findIndex(s => s.id === status);
 
+  const settingsModalContent = (
+    <AnimatePresence>
+      {showSettings && (
+        <motion.div initial={{ opacity: 0, y: 15, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 15, scale: 0.95 }} className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto top-16 sm:top-auto mt-2 sm:mt-6 w-auto sm:w-[420px] glass-card p-0 shadow-[0_40px_100px_rgba(0,0,0,0.5)] border-white/10 z-[100] overflow-visible max-h-[80vh] overflow-y-auto">
+          <div className="bg-gradient-to-r from-slate-50 to-white dark:from-[#151515] dark:to-[#1a1a1a] p-8 border-b border-slate-200 dark:border-white/5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-yt-red/10 flex items-center justify-center text-yt-red shadow-inner"><Settings size={22} className="animate-spin-slow" /></div>
+                <div>
+                  <h4 className="text-[13px] font-black uppercase tracking-[0.2em] text-slate-900 dark:text-white">Studio Preferences</h4>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">Configuration v6.0.4</p>
+                </div>
+              </div>
+              <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/10 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                <div className="text-2xl rotate-45 font-light leading-none">+</div>
+              </button>
+            </div>
+          </div>
+          <div className="p-8 space-y-10 bg-white dark:bg-[#0a0a0a]/80">
+            <div className="space-y-10">
+              <PremiumSelect label="Transcription Engine" value={selectedModel} options={availableModels} onChange={setSelectedModel} icon={Cpu} color="text-purple-400" isActive={status === 'VOCAL_ANALYSIS'} />
+              <PremiumSelect label="Semantic AI (Google Brain)" value={selectedGoogleModel} options={googleModels} onChange={setSelectedGoogleModel} icon={Sparkles} color="text-yellow-400" isActive={status === 'SEMANTICS'} />
+              <PremiumSelect label="Visual Branding Style" value={selectedStyle} options={subtitleStyles.map(s => ({ id: s, name: `${s} Studio Preset`, desc: `High-retention ${s} layout & font` }))} onChange={setSelectedStyle} icon={Layout} color="text-pink-400" isActive={status === 'COMPOSITING'} />
+              <div className="h-px bg-slate-200 dark:bg-white/5 my-2" />
+              <PremiumSelect label="Vocal Engine (TTS)" value={selectedTTSEngine} options={ttsEngines} onChange={setSelectedTTSEngine} icon={Mic} color="text-emerald-400" isActive={status === 'TTS_SYNTHESIS'} />
+              {selectedTTSEngine !== 'original' && (
+                <PremiumSelect label="AI Vocal Persona" value={selectedTTSVoice} options={ttsVoices} onChange={setSelectedTTSVoice} icon={CheckCircle2} color="text-blue-400" isActive={status === 'TTS_SYNTHESIS'} />
+              )}
+            </div>
+          </div>
+          <div className="bg-slate-50 dark:bg-white/[0.02] px-8 py-5 flex justify-between items-center border-t border-slate-200 dark:border-white/5">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Utik Studio • Egyptian Edition</span>
+            <div className="flex gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-yt-red"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-tk-pink"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-tk-cyan"></div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   return (
     <div className={`min-h-screen transition-colors duration-500 overflow-x-hidden ${isDark ? 'dark bg-[#050505]' : 'bg-slate-50'}`}>
       
@@ -1501,6 +1544,7 @@ function App() {
               <button onClick={() => setShowSettings(!showSettings)} className={`p-2 bg-slate-200 dark:bg-white/5 hover:bg-slate-300 dark:hover:bg-white/10 rounded-full text-slate-600 dark:text-slate-400 transition-all ${showSettings ? 'bg-yt-red/10 text-yt-red' : ''}`}>
                 <Settings size={16} />
               </button>
+              {settingsModalContent}
             </div>
           </div>
         </div>
@@ -1538,46 +1582,7 @@ function App() {
             <button onClick={() => setShowSettings(!showSettings)} className={`p-2.5 bg-slate-200 dark:bg-white/5 hover:bg-slate-300 dark:hover:bg-white/10 rounded-full text-slate-600 dark:text-slate-400 transition-all ${showSettings ? 'bg-yt-red/10 text-yt-red' : ''}`}>
               <Settings size={20} />
             </button>
-            <AnimatePresence>
-              {showSettings && (
-                <motion.div initial={{ opacity: 0, y: 15, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 15, scale: 0.95 }} className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto top-16 sm:top-auto mt-2 sm:mt-6 w-auto sm:w-[420px] glass-card p-0 shadow-[0_40px_100px_rgba(0,0,0,0.5)] border-white/10 z-[100] overflow-visible max-h-[80vh] overflow-y-auto">
-                  <div className="bg-gradient-to-r from-slate-50 to-white dark:from-[#151515] dark:to-[#1a1a1a] p-8 border-b border-slate-200 dark:border-white/5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-yt-red/10 flex items-center justify-center text-yt-red shadow-inner"><Settings size={22} className="animate-spin-slow" /></div>
-                        <div>
-                          <h4 className="text-[13px] font-black uppercase tracking-[0.2em] text-slate-900 dark:text-white">Studio Preferences</h4>
-                          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">Configuration v6.0.4</p>
-                        </div>
-                      </div>
-                      <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/10 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                        <div className="text-2xl rotate-45 font-light leading-none">+</div>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="p-8 space-y-10 bg-white dark:bg-[#0a0a0a]/80">
-                    <div className="space-y-10">
-                      <PremiumSelect label="Transcription Engine" value={selectedModel} options={availableModels} onChange={setSelectedModel} icon={Cpu} color="text-purple-400" isActive={status === 'VOCAL_ANALYSIS'} />
-                      <PremiumSelect label="Semantic AI (Google Brain)" value={selectedGoogleModel} options={googleModels} onChange={setSelectedGoogleModel} icon={Sparkles} color="text-yellow-400" isActive={status === 'SEMANTICS'} />
-                      <PremiumSelect label="Visual Branding Style" value={selectedStyle} options={subtitleStyles.map(s => ({ id: s, name: `${s} Studio Preset`, desc: `High-retention ${s} layout & font` }))} onChange={setSelectedStyle} icon={Layout} color="text-pink-400" isActive={status === 'COMPOSITING'} />
-                      <div className="h-px bg-slate-200 dark:bg-white/5 my-2" />
-                      <PremiumSelect label="Vocal Engine (TTS)" value={selectedTTSEngine} options={ttsEngines} onChange={setSelectedTTSEngine} icon={Mic} color="text-emerald-400" isActive={status === 'TTS_SYNTHESIS'} />
-                      {selectedTTSEngine !== 'original' && (
-                        <PremiumSelect label="AI Vocal Persona" value={selectedTTSVoice} options={ttsVoices} onChange={setSelectedTTSVoice} icon={CheckCircle2} color="text-blue-400" isActive={status === 'TTS_SYNTHESIS'} />
-                      )}
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-white/[0.02] px-8 py-5 flex justify-between items-center border-t border-slate-200 dark:border-white/5">
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Utik Studio • Egyptian Edition</span>
-                    <div className="flex gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-yt-red"></div>
-                      <div className="w-1.5 h-1.5 rounded-full bg-tk-pink"></div>
-                      <div className="w-1.5 h-1.5 rounded-full bg-tk-cyan"></div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {settingsModalContent}
           </div>
         </div>
       </nav>

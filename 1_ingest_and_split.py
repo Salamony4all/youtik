@@ -328,6 +328,8 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                 }
                 proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
                 if proxy_url:
+                    if proxy_url.startswith("socks5h://"):
+                        proxy_url = proxy_url.replace("socks5h://", "socks5://")
                     import urllib.parse
                     parsed = urllib.parse.urlparse(proxy_url)
                     server_address = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}" if parsed.port else f"{parsed.scheme}://{parsed.hostname}"
@@ -352,6 +354,8 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                 }
                 proxy_url = os.environ.get("YOUTUBE_PROXY") or os.environ.get("PROXY_URL")
                 if proxy_url:
+                    if proxy_url.startswith("socks5h://"):
+                        proxy_url = proxy_url.replace("socks5h://", "socks5://")
                     import urllib.parse
                     parsed = urllib.parse.urlparse(proxy_url)
                     server_address = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}" if parsed.port else f"{parsed.scheme}://{parsed.hostname}"
@@ -510,6 +514,7 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                             'preferredquality': '192',
                         }],
                         'quiet': False,
+                        'hls_prefer_native': True,
                         'extractor_args': {
                             'youtube': {
                                 'player_client': ['web_creator', 'mweb', 'web']
@@ -669,6 +674,7 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
                 "--audio-quality", "192",
                 "--downloader", "ffmpeg",
                 "--downloader-args", "ffmpeg:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+                "--hls-prefer-native",
                 "--remote-components", "ejs:github"
             ])
         if proxy_url:
