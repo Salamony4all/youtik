@@ -45,6 +45,53 @@ output/
 Thumbs.db
 
 # Models & IDE configs
+# Environments
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Media / Outputs
+temp/
+output/
+*.mp4
+*.wav
+*.json
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/tsconfig.json
+!you-tik-sync-extension/manifest.json
+!utik v*.md
+!project_analysis.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models & IDE configs
 models/
 .sixth/
 
@@ -54,3 +101,8 @@ sessions/
 # Scratch directory
 scratch/
 pw-browsers/
+
+# Browser Cookies
+*cookie*.txt
+*cookie*.json
+TK_cookies*.json
