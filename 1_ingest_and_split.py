@@ -457,7 +457,7 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                 # Download the stream using the browser's authenticated context
                 log("[FALLBACK] Downloading stream via browser context...")
                 try:
-                    response = page.request.get(stream_url, timeout=120000)
+                    response = page.request.get(stream_url, timeout=0)
                     if response.ok:
                         with open(temp_video, "wb") as f:
                             f.write(response.body())
@@ -548,7 +548,7 @@ def download_via_playwright(url: str, output_wav_path: str, raw_cookie_content: 
                 subprocess.run(
                     ["ffmpeg", "-y", "-i", temp_video, "-vn", "-acodec", "pcm_s16le",
                      "-ar", "44100", "-ac", "2", output_wav_path],
-                    check=True, capture_output=True, timeout=120
+                    check=True, capture_output=True
                 )
                 # Clean up temp video
                 if os.path.exists(temp_video):

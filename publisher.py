@@ -427,7 +427,7 @@ async def _run_google_login(job_id: str):
             login_jobs[job_id]["detail"] = "Please sign in to your Google account in the browser window…"
 
             logged_in = False
-            for _ in range(1800):  # up to 30 minutes
+            while not page.is_closed():
                 await page.wait_for_timeout(1000)
                 try:
                     cur = page.url
@@ -491,7 +491,7 @@ async def _run_google_login(job_id: str):
 
             else:
                 login_jobs[job_id]["status"] = "TIMEOUT"
-                login_jobs[job_id]["detail"] = "Login timed out (5 min). Please try again."
+                login_jobs[job_id]["detail"] = "Login was not completed (browser closed)."
 
             await context.close()
 
@@ -849,18 +849,23 @@ async def _publish_playwright(
                 elif platform == "twitter":
                     await _upload_twitter(job_id, page, video_path, caption, headless)
                 
+                # Extract and save updated cookies so the VNC session persists
+                try:
+                    updated_cookies = await context.cookies()
+                    db.save_cookies(account, platform, updated_cookies)
+                    print(f"[{platform}] Extracted and saved updated cookies to database for account '{account}'.")
+                except Exception as e:
+                    print(f"[{platform}] Failed to save updated cookies: {e}")
+                
                 # Success path - keep open if visible (local or VNC)
                 if not headless:
                     _set_status(job_id, "PUBLISHED", f"Successfully uploaded to {PLATFORMS.get(platform, {}).get('name', platform)}! Browser visible for verification.")
-                    # On server with VNC: keep open for 30s so user can see the result
-                    if on_server and virtual_display:
-                        await asyncio.sleep(30)
-                    else:
-                        while not page.is_closed():
-                            try:
-                                await asyncio.sleep(1)
-                            except Exception:
-                                break
+                    # Keep open forever until VNC/browser closes
+                    while not page.is_closed():
+                        try:
+                            await asyncio.sleep(1)
+                        except Exception:
+                            break
                 else:
                     _set_status(job_id, "PUBLISHED", f"Successfully uploaded to {PLATFORMS.get(platform, {}).get('name', platform)} ✓")
             except Exception as upload_exc:
@@ -868,14 +873,11 @@ async def _publish_playwright(
                 # Error path - keep open if visible
                 if not headless:
                     _set_status(job_id, "ERROR", f"{platform} upload failed: {upload_exc}. Browser kept open for review.")
-                    if on_server and virtual_display:
-                        await asyncio.sleep(60)  # Give user time to see error via VNC
-                    else:
-                        while not page.is_closed():
-                            try:
-                                await asyncio.sleep(1)
-                            except Exception:
-                                break
+                    while not page.is_closed():
+                        try:
+                            await asyncio.sleep(1)
+                        except Exception:
+                            break
                 else:
                     # Headless error path
                     _set_status(job_id, "ERROR", f"{platform} upload failed: {upload_exc}")
@@ -921,14 +923,14 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
             "WAITING_LOGIN",
             "Please log in to your Google account in the browser window…",
         )
-        # Wait up to 5 min for the user to log in
-        for _ in range(300):
+        # Wait indefinitely for the user to log in
+        while not page.is_closed():
             await page.wait_for_timeout(1000)
-            if "studio.youtube.com" in page.url:
+            if "studio.youtube.com" in page.url and "accounts.google.com" not in page.url:
                 break
 
         if "accounts.google.com" in page.url:
-            raise Exception("Google sign-in timed out or was not completed.")
+            raise Exception("Google sign-in was not completed (browser closed).")
 
     _set_status(job_id, "UPLOADING", "Uploading video to YouTube Shorts…")
 
@@ -1058,13 +1060,13 @@ async def _upload_instagram(job_id, page, video_path, caption, headless=False):
             "WAITING_LOGIN",
             "Please log in to Instagram in the browser window…",
         )
-        for _ in range(300):
+        while not page.is_closed():
             await page.wait_for_timeout(1000)
             if "login" not in page.url.lower():
                 break
 
         if "login" in page.url.lower():
-            raise Exception("Instagram sign-in timed out or was not completed.")
+            raise Exception("Instagram sign-in was not completed (browser closed).")
 
     _set_status(job_id, "UPLOADING", "Creating new Reel on Instagram…")
 
@@ -1102,13 +1104,13 @@ async def _upload_twitter(job_id, page, video_path, caption, headless=False):
             "WAITING_LOGIN",
             "Please log in to X/Twitter in the browser window…",
         )
-        for _ in range(300):
+        while not page.is_closed():
             await page.wait_for_timeout(1000)
             if "compose" in page.url.lower() or "home" in page.url.lower():
                 break
 
         if "login" in page.url.lower() or "flow" in page.url.lower():
-            raise Exception("X/Twitter sign-in timed out or was not completed.")
+            raise Exception("X/Twitter sign-in was not completed (browser closed).")
 
     _set_status(job_id, "UPLOADING", "Composing post with video…")
 

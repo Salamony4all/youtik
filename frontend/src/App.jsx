@@ -930,7 +930,7 @@ function App() {
       setDirectSyncResultMsg("❌ Sync failed: Connection error.");
     } finally {
       setDirectSyncing(false);
-      setTimeout(() => setDirectSyncResultMsg(""), 8000);
+    }
     }
   };
 
@@ -1097,10 +1097,9 @@ function App() {
             }
             setIsGoogleSigningIn(false);
             setGoogleLoginDetail('');
-          } else if (st === 'ERROR' || st === 'TIMEOUT') {
+          } else if (st === 'ERROR') {
             clearInterval(poll);
             setIsGoogleSigningIn(false);
-            setTimeout(() => setGoogleLoginDetail(''), 8000);
           }
         } catch {
           clearInterval(poll);
@@ -1112,7 +1111,6 @@ function App() {
       console.error("Google auth failed", err);
       setIsGoogleSigningIn(false);
       setGoogleLoginDetail('Failed to start login');
-      setTimeout(() => setGoogleLoginDetail(''), 5000);
     }
   };
 
@@ -1139,7 +1137,6 @@ function App() {
       if (!success) {
         setSyncResultMsg(`Sync failed: ${error || `Verify you are signed into ${targetPlatform}!`}`);
         setSyncingExtension(false);
-        setTimeout(() => setSyncResultMsg(""), 8000);
         return;
       }
       
@@ -1166,7 +1163,6 @@ function App() {
         setSyncResultMsg("Sync failed: Backend connection error.");
       } finally {
         setSyncingExtension(false);
-        setTimeout(() => setSyncResultMsg(""), 8000);
       }
     };
     
@@ -1209,7 +1205,6 @@ function App() {
         setSyncResultMsg("Sync failed: Backend connection error.");
       } finally {
         setSyncingExtension(false);
-        setTimeout(() => setSyncResultMsg(""), 8000);
       }
     };
     reader.readAsText(file);
@@ -1245,7 +1240,6 @@ function App() {
       setSyncResultMsg("Sync failed: Backend connection error.");
     } finally {
       setSyncingExtension(false);
-      setTimeout(() => setSyncResultMsg(""), 8000);
     }
   };
 
