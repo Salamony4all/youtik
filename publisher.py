@@ -426,10 +426,11 @@ async def _run_google_login(job_id: str):
             login_jobs[job_id]["detail"] = "Please sign in to your Google account in the browser window…"
 
             logged_in = False
-            for _ in range(300):  # up to 5 minutes
+            for _ in range(600):  # up to 10 minutes
                 await page.wait_for_timeout(1000)
                 try:
                     cur = page.url
+                    # We consider login successful once it lands on YouTube Studio and is no longer on Google Accounts
                     if "studio.youtube.com" in cur and "accounts.google.com" not in cur:
                         logged_in = True
                         break
@@ -437,7 +438,8 @@ async def _run_google_login(job_id: str):
                     pass
 
             if logged_in:
-                await page.wait_for_timeout(4000)  # Let Studio fully load
+                # Wait longer (10 seconds) to ensure all background scripts, session storage, and cookies fully settle
+                await page.wait_for_timeout(10000)
 
                 name = "YouTube Creator"
                 try:
