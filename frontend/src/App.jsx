@@ -61,10 +61,10 @@ const statusProgressMap = {
 const MUSIC_GENRES = ["Pop", "Hip-Hop", "Cinematic", "Egyptian Folk", "Electronic", "Lo-Fi", "Rock", "Jazz", "Synthwave", "Trap", "Classical", "Ambient", "Orchestral", "EDM", "Acoustic", "Metal", "R&B", "Reggae", "Country", "Techno", "House", "Phonk"];
 
 const PUBLISH_PLATFORMS = [
-  { id: 'tiktok',    icon: '🎵', name: 'TikTok',          color: '#FE2C55' },
-  { id: 'youtube',   icon: '▶️',  name: 'YouTube Shorts',  color: '#FF0000' },
+  { id: 'tiktok', icon: '🎵', name: 'TikTok', color: '#FE2C55' },
+  { id: 'youtube', icon: '▶️', name: 'YouTube Shorts', color: '#FF0000' },
   { id: 'instagram', icon: '📸', name: 'Instagram Reels', color: '#E1306C' },
-  { id: 'twitter',   icon: '🐦', name: 'X / Twitter',     color: '#1DA1F2' },
+  { id: 'twitter', icon: '🐦', name: 'X / Twitter', color: '#1DA1F2' },
 ];
 
 const LiveViewer = ({ jobId, onClose }) => {
@@ -73,10 +73,10 @@ const LiveViewer = ({ jobId, onClose }) => {
 
   useEffect(() => {
     if (!containerRef.current) return;
-    
+
     // Construct WebSocket URL matching the FastAPI VNC proxy endpoint
     const wsUrl = API_BASE.replace('http', 'ws') + `/api/vnc/${jobId}`;
-    
+
     try {
       rfbRef.current = new RFB(containerRef.current, wsUrl, {
         credentials: { password: '' },
@@ -102,19 +102,19 @@ const LiveViewer = ({ jobId, onClose }) => {
           <Monitor className="text-blue-500 w-5 h-5" />
           <h2 className="text-lg font-medium text-white">Live Browser Viewer</h2>
           <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse flex items-center">
-             <div className="w-1.5 h-1.5 bg-white rounded-full mr-1.5" />
-             LIVE
+            <div className="w-1.5 h-1.5 bg-white rounded-full mr-1.5" />
+            LIVE
           </span>
         </div>
-        <button 
+        <button
           onClick={onClose}
           className="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
         >
           Close Viewer
         </button>
       </div>
-      <div 
-        ref={containerRef} 
+      <div
+        ref={containerRef}
         className="flex-1 w-full flex items-center justify-center overflow-hidden relative"
       />
     </div>
@@ -192,7 +192,7 @@ const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, se
           const statusRes = await axios.get(`${API_BASE}/publish/status/${jobId}`);
           const { status: st, detail, vnc_active } = statusRes.data;
           setPublishStatus(prev => ({ ...prev, [key]: { status: st, detail, jobId } }));
-          
+
           setActiveVncJobId(prev => {
             if (vnc_active && showBrowser) {
               return prev === 'CLOSED_' + jobId ? prev : jobId;
@@ -228,210 +228,204 @@ const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, se
         <>
           <AnimatePresence>
             {isOpen && (
-            <motion.div
-              ref={dropdownRef}
-              initial={{ opacity: 0, y: 10, scale: 0.92 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.92 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              style={{
-                position: 'fixed',
-                top: dropdownPos.top,
-                left: dropdownPos.left,
-                width: 300,
-                transform: 'translateY(-100%)',
-              }}
-              className="bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/15 rounded-2xl shadow-[0_25px_80px_rgba(0,0,0,0.35)] z-[9999] overflow-hidden"
-            >
-              {/* Header */}
-              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-white/10 bg-gradient-to-r from-purple-500/5 to-pink-500/5 dark:from-purple-500/10 dark:to-pink-500/10">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                    <Share2 size={12} className="text-white" />
-                  </div>
-                  <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-700 dark:text-slate-200">Publish & Share</span>
-                </div>
-              </div>
-
-              {/* Google Master Auth Card */}
-              <div className="p-3 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01]">
-                {googleUser ? (
-                  <div className="flex items-center gap-3 p-3 bg-white dark:bg-[#252528] rounded-xl border border-slate-100 dark:border-white/5 shadow-sm">
-                    <img 
-                      src={googleUser.picture} 
-                      alt={googleUser.name} 
-                      className="w-9 h-9 rounded-full border border-purple-500/20"
-                      onError={(e) => { e.target.src = "https://lh3.googleusercontent.com/a/default-user=s96-c"; }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-1.5">
-                        {googleUser.name}
-                        <span className="text-[9px] bg-green-500/10 dark:bg-green-500/20 text-green-600 dark:text-green-400 font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider">Master Unlocked</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{googleUser.email}</div>
+              <motion.div
+                ref={dropdownRef}
+                initial={{ opacity: 0, y: 10, scale: 0.92 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.92 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                style={{
+                  position: 'fixed',
+                  top: dropdownPos.top,
+                  left: dropdownPos.left,
+                  width: 300,
+                  transform: 'translateY(-100%)',
+                }}
+                className="bg-white dark:bg-[#1c1c1e] border border-slate-200 dark:border-white/15 rounded-2xl shadow-[0_25px_80px_rgba(0,0,0,0.35)] z-[9999] overflow-hidden"
+              >
+                {/* Header */}
+                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-white/10 bg-gradient-to-r from-purple-500/5 to-pink-500/5 dark:from-purple-500/10 dark:to-pink-500/10">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                      <Share2 size={12} className="text-white" />
                     </div>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); handleGoogleSignOut(); }}
-                      className="text-[10px] font-black text-red-500 hover:bg-red-500/10 px-2.5 py-1.5 rounded-lg transition-colors active:scale-95"
-                    >
-                      Sign Out
-                    </button>
+                    <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-700 dark:text-slate-200">Publish & Share</span>
                   </div>
-                ) : (
-                  <>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleGoogleSignIn(); }}
-                      disabled={isGoogleSigningIn}
-                      className="w-full flex items-center justify-center gap-3 bg-white dark:bg-[#252528] hover:bg-slate-50 dark:hover:bg-[#2d2d31] border border-slate-200 dark:border-white/10 p-3 rounded-xl shadow-sm transition-all duration-200 active:scale-[0.98]"
-                    >
-                      {isGoogleSigningIn ? (
-                        <Loader size={16} className="text-purple-500 animate-spin shrink-0" />
-                      ) : (
-                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                        </svg>
-                      )}
-                      <span className="text-xs font-black text-slate-700 dark:text-slate-200">
-                        {isGoogleSigningIn ? (googleLoginDetail || 'Opening browser…') : 'Sign in with Google'}
-                      </span>
-                    </button>
-                    {googleLoginDetail && !isGoogleSigningIn && (
-                      <p className="text-[10px] text-center font-semibold text-red-500 dark:text-red-400 mt-1.5 animate-pulse">{googleLoginDetail}</p>
-                    )}
-                  </>
-                )}
-
-
-              </div>
-
-              {/* Advanced Settings / Toggles */}
-              <div className="px-4 py-3.5 border-b border-slate-100 dark:border-white/5 space-y-3 bg-slate-50/20 dark:bg-white/[0.01]">
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Save as Draft</span>
-                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Do not publish instantly</span>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setSaveAsDraft(!saveAsDraft); }}
-                    className={`w-9 h-5.5 flex items-center rounded-full p-0.5 transition-all duration-300 ${
-                      saveAsDraft ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'bg-slate-200 dark:bg-zinc-700'
-                    }`}
-                  >
-                    <div
-                      className={`bg-white w-4.5 h-4.5 rounded-full shadow-sm transform transition-all duration-300 ${
-                        saveAsDraft ? 'translate-x-3.5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Show Browser Window</span>
-                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Watch automated upload live</span>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setShowBrowser(!showBrowser); }}
-                    className={`w-9 h-5.5 flex items-center rounded-full p-0.5 transition-all duration-300 ${
-                      showBrowser ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'bg-slate-200 dark:bg-zinc-700'
-                    }`}
-                  >
-                    <div
-                      className={`bg-white w-4.5 h-4.5 rounded-full shadow-sm transform transition-all duration-300 ${
-                        showBrowser ? 'translate-x-3.5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {/* Platform list */}
-              <div className="p-2 space-y-1">
-                {PUBLISH_PLATFORMS.map(platform => {
-                  const pStatus = getStatusForPlatform(platform.id);
-                  const isPublished = pStatus?.status === 'PUBLISHED';
-                  const isLoading = pStatus && !isPublished && pStatus.status !== 'ERROR';
-                  const isError = pStatus?.status === 'ERROR';
-
-                  return (
-                    <button
-                      key={platform.id}
-                      onClick={(e) => { e.stopPropagation(); if (!isLoading && !isPublished) handlePublish(platform); }}
-                      disabled={isLoading || isPublished}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group/pub ${
-                        isPublished
-                          ? 'bg-green-50 dark:bg-green-500/10 cursor-default'
-                          : isLoading
-                          ? 'bg-slate-50 dark:bg-white/5 cursor-wait'
-                          : isError
-                          ? 'bg-red-50 dark:bg-red-500/5 hover:bg-red-100 dark:hover:bg-red-500/10 cursor-pointer'
-                          : 'hover:bg-slate-100 dark:hover:bg-white/8 cursor-pointer active:scale-[0.98]'
-                      }`}
-                    >
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg" style={{ backgroundColor: platform.color + '15' }}>
-                        {platform.icon}
-                      </div>
-                      <div className="flex-1 text-left min-w-0">
-                        <div className="text-[13px] font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                          {platform.name}
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); triggerExtensionSync(platform.id); }}
-                            className="px-1.5 py-0.5 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 text-[9px] font-bold uppercase tracking-wider transition-colors active:scale-95"
-                            title={`Sync ${platform.name} cookies`}
-                          >
-                            ⚡ Sync
-                          </button>
+                {/* Google Master Auth Card */}
+                <div className="p-3 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01]">
+                  {googleUser ? (
+                    <div className="flex items-center gap-3 p-3 bg-white dark:bg-[#252528] rounded-xl border border-slate-100 dark:border-white/5 shadow-sm">
+                      <img
+                        src={googleUser.picture}
+                        alt={googleUser.name}
+                        className="w-9 h-9 rounded-full border border-purple-500/20"
+                        onError={(e) => { e.target.src = "https://lh3.googleusercontent.com/a/default-user=s96-c"; }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-black text-slate-800 dark:text-white flex items-center gap-1.5">
+                          {googleUser.name}
+                          <span className="text-[9px] bg-green-500/10 dark:bg-green-500/20 text-green-600 dark:text-green-400 font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider">Master Unlocked</span>
                         </div>
-                        {pStatus ? (
-                          <div className={`text-[10px] font-semibold truncate ${
-                            isPublished ? 'text-green-600 dark:text-green-400'
-                            : isError ? 'text-red-500 dark:text-red-400'
-                            : 'text-purple-500 dark:text-purple-400'
-                          }`}>
-                            {pStatus.detail || pStatus.status}
-                          </div>
-                        ) : (
-                          <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
-                            {googleUser ? "Master session linked" : "Ready to publish"}
-                          </div>
-                        )}
+                        <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{googleUser.email}</div>
                       </div>
-                      <div className="flex-shrink-0">
-                        {isPublished ? (
-                          <CheckCircle2 size={18} className="text-green-500" />
-                        ) : isLoading ? (
-                          <Loader size={18} className="text-purple-500 animate-spin" />
-                        ) : isError ? (
-                          <AlertCircle size={18} className="text-red-500" />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleGoogleSignOut(); }}
+                        className="text-[10px] font-black text-red-500 hover:bg-red-500/10 px-2.5 py-1.5 rounded-lg transition-colors active:scale-95"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleGoogleSignIn(); }}
+                        disabled={isGoogleSigningIn}
+                        className="w-full flex items-center justify-center gap-3 bg-white dark:bg-[#252528] hover:bg-slate-50 dark:hover:bg-[#2d2d31] border border-slate-200 dark:border-white/10 p-3 rounded-xl shadow-sm transition-all duration-200 active:scale-[0.98]"
+                      >
+                        {isGoogleSigningIn ? (
+                          <Loader size={16} className="text-purple-500 animate-spin shrink-0" />
                         ) : (
-                          <ChevronRight size={16} className="text-slate-300 dark:text-slate-600 group-hover/pub:text-purple-500 group-hover/pub:translate-x-0.5 transition-all" />
+                          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                          </svg>
                         )}
-                      </div>
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-200">
+                          {isGoogleSigningIn ? (googleLoginDetail || 'Opening browser…') : 'Sign in with Google'}
+                        </span>
+                      </button>
+                      {googleLoginDetail && !isGoogleSigningIn && (
+                        <p className="text-[10px] text-center font-semibold text-red-500 dark:text-red-400 mt-1.5 animate-pulse">{googleLoginDetail}</p>
+                      )}
+                    </>
+                  )}
+
+
+                </div>
+
+                {/* Advanced Settings / Toggles */}
+                <div className="px-4 py-3.5 border-b border-slate-100 dark:border-white/5 space-y-3 bg-slate-50/20 dark:bg-white/[0.01]">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Save as Draft</span>
+                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Do not publish instantly</span>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSaveAsDraft(!saveAsDraft); }}
+                      className={`w-9 h-5.5 flex items-center rounded-full p-0.5 transition-all duration-300 ${saveAsDraft ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'bg-slate-200 dark:bg-zinc-700'
+                        }`}
+                    >
+                      <div
+                        className={`bg-white w-4.5 h-4.5 rounded-full shadow-sm transform transition-all duration-300 ${saveAsDraft ? 'translate-x-3.5' : 'translate-x-0'
+                          }`}
+                      />
                     </button>
-                  );
-                })}
-              </div>
+                  </div>
 
-              {/* Footer */}
-              <div className="px-5 py-2.5 border-t border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02]">
-                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium text-center leading-relaxed">
-                  {googleUser 
-                    ? "Signed in with Google Master Account • Unlocked"
-                    : "First use opens browser for login • Saved locally"
-                  }
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Show Browser Window</span>
+                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">Watch automated upload live</span>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowBrowser(!showBrowser); }}
+                      className={`w-9 h-5.5 flex items-center rounded-full p-0.5 transition-all duration-300 ${showBrowser ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'bg-slate-200 dark:bg-zinc-700'
+                        }`}
+                    >
+                      <div
+                        className={`bg-white w-4.5 h-4.5 rounded-full shadow-sm transform transition-all duration-300 ${showBrowser ? 'translate-x-3.5' : 'translate-x-0'
+                          }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Platform list */}
+                <div className="p-2 space-y-1">
+                  {PUBLISH_PLATFORMS.map(platform => {
+                    const pStatus = getStatusForPlatform(platform.id);
+                    const isPublished = pStatus?.status === 'PUBLISHED';
+                    const isLoading = pStatus && !isPublished && pStatus.status !== 'ERROR';
+                    const isError = pStatus?.status === 'ERROR';
+
+                    return (
+                      <button
+                        key={platform.id}
+                        onClick={(e) => { e.stopPropagation(); if (!isLoading && !isPublished) handlePublish(platform); }}
+                        disabled={isLoading || isPublished}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group/pub ${isPublished
+                            ? 'bg-green-50 dark:bg-green-500/10 cursor-default'
+                            : isLoading
+                              ? 'bg-slate-50 dark:bg-white/5 cursor-wait'
+                              : isError
+                                ? 'bg-red-50 dark:bg-red-500/5 hover:bg-red-100 dark:hover:bg-red-500/10 cursor-pointer'
+                                : 'hover:bg-slate-100 dark:hover:bg-white/8 cursor-pointer active:scale-[0.98]'
+                          }`}
+                      >
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg" style={{ backgroundColor: platform.color + '15' }}>
+                          {platform.icon}
+                        </div>
+                        <div className="flex-1 text-left min-w-0">
+                          <div className="text-[13px] font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            {platform.name}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); triggerExtensionSync(platform.id); }}
+                              className="px-1.5 py-0.5 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 text-[9px] font-bold uppercase tracking-wider transition-colors active:scale-95"
+                              title={`Sync ${platform.name} cookies`}
+                            >
+                              ⚡ Sync
+                            </button>
+                          </div>
+                          {pStatus ? (
+                            <div className={`text-[10px] font-semibold truncate ${isPublished ? 'text-green-600 dark:text-green-400'
+                                : isError ? 'text-red-500 dark:text-red-400'
+                                  : 'text-purple-500 dark:text-purple-400'
+                              }`}>
+                              {pStatus.detail || pStatus.status}
+                            </div>
+                          ) : (
+                            <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                              {googleUser ? "Master session linked" : "Ready to publish"}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-shrink-0">
+                          {isPublished ? (
+                            <CheckCircle2 size={18} className="text-green-500" />
+                          ) : isLoading ? (
+                            <Loader size={18} className="text-purple-500 animate-spin" />
+                          ) : isError ? (
+                            <AlertCircle size={18} className="text-red-500" />
+                          ) : (
+                            <ChevronRight size={16} className="text-slate-300 dark:text-slate-600 group-hover/pub:text-purple-500 group-hover/pub:translate-x-0.5 transition-all" />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-2.5 border-t border-slate-100 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02]">
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium text-center leading-relaxed">
+                    {googleUser
+                      ? "Signed in with Google Master Account • Unlocked"
+                      : "First use opens browser for login • Saved locally"
+                    }
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
 
-      </>,
-      document.body
-    )}
+        </>,
+        document.body
+      )}
     </>
   );
 };
@@ -931,15 +925,14 @@ function App() {
     } finally {
       setDirectSyncing(false);
     }
-    }
   };
 
   // Check if extension is active while modal is open (fast polling)
   useEffect(() => {
     if (!showSyncGuideModal) return;
-    
+
     setExtensionActive(!!window.__YOUTIK_SYNC_EXTENSION__);
-    
+
     const handleExtensionPong = (event) => {
       if (event.source !== window || !event.data) return;
       if (event.data.type === "YOUTIK_PONG") {
@@ -947,9 +940,9 @@ function App() {
         setExtensionActive(true);
       }
     };
-    
+
     window.addEventListener("message", handleExtensionPong);
-    
+
     // Poll and ping extension
     const interval = setInterval(() => {
       window.postMessage({ type: "YOUTIK_PING" }, "*");
@@ -957,10 +950,10 @@ function App() {
         setExtensionActive(true);
       }
     }, 1000);
-    
+
     // Initial ping
     window.postMessage({ type: "YOUTIK_PING" }, "*");
-    
+
     return () => {
       window.removeEventListener("message", handleExtensionPong);
       clearInterval(interval);
@@ -975,17 +968,17 @@ function App() {
         window.__YOUTIK_SYNC_EXTENSION__ = true;
       }
     };
-    
+
     window.addEventListener("message", handleExtensionPongGlobal);
-    
+
     // Ping every 3 seconds globally
     const interval = setInterval(() => {
       window.postMessage({ type: "YOUTIK_PING" }, "*");
     }, 3000);
-    
+
     // Initial ping
     window.postMessage({ type: "YOUTIK_PING" }, "*");
-    
+
     return () => {
       window.removeEventListener("message", handleExtensionPongGlobal);
       clearInterval(interval);
@@ -1122,24 +1115,24 @@ function App() {
       setShowSyncGuideModal(true);
       return;
     }
-    
+
     setSyncingExtension(true);
     setSyncResultMsg(`Requesting ${platform} session cookies...`);
-    
+
     const handleSyncResponse = async (event) => {
       if (event.source !== window || !event.data || event.data.type !== "YOUTIK_SYNC_RESULT") return;
-      
+
       window.removeEventListener("message", handleSyncResponse);
-      
+
       const { success, cookies, error, platform: responsePlatform } = event.data;
       const targetPlatform = responsePlatform || platform;
-      
+
       if (!success) {
         setSyncResultMsg(`Sync failed: ${error || `Verify you are signed into ${targetPlatform}!`}`);
         setSyncingExtension(false);
         return;
       }
-      
+
       try {
         setSyncResultMsg("Syncing session with cloud backend...");
         const res = await axios.post(`${API_BASE}/api/auth/cookies/sync`, {
@@ -1147,7 +1140,7 @@ function App() {
           platform: targetPlatform,
           cookies: typeof cookies === 'string' ? JSON.parse(cookies) : cookies
         });
-        
+
         if (res.data && res.data.status === "success") {
           setSyncResultMsg(`🎉 ${targetPlatform} session successfully synced!`);
           // Fetch synced google user info to update UI
@@ -1165,9 +1158,9 @@ function App() {
         setSyncingExtension(false);
       }
     };
-    
+
     window.addEventListener("message", handleSyncResponse);
-    
+
     // Trigger Content Script injection message
     window.postMessage({ type: "YOUTIK_TRIGGER_SYNC", platform: platform }, "*");
   };
@@ -1175,10 +1168,10 @@ function App() {
   const handleCookieFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    
+
     setSyncingExtension(true);
     setSyncResultMsg("Reading cookie file...");
-    
+
     const reader = new FileReader();
     reader.onload = async (e) => {
       const content = e.target.result;
@@ -1189,7 +1182,7 @@ function App() {
           platform: syncPlatform,
           cookies: JSON.parse(content)
         });
-        
+
         if (res.data && res.data.status === "success") {
           setSyncResultMsg(`🎉 ${syncPlatform} cookies successfully synced from file!`);
           // Fetch synced google user info to update UI
@@ -1212,17 +1205,17 @@ function App() {
 
   const handlePastedCookiesSync = async () => {
     if (!pastedCookies.trim()) return;
-    
+
     setSyncingExtension(true);
     setSyncResultMsg("Syncing pasted cookies with cloud backend...");
-    
+
     try {
       const res = await axios.post(`${API_BASE}/api/auth/cookies/sync`, {
         user_id: "default",
         platform: syncPlatform,
         cookies: JSON.parse(pastedCookies)
       });
-      
+
       if (res.data && res.data.status === "success") {
         setSyncResultMsg(`🎉 ${syncPlatform} cookies successfully synced from paste!`);
         setPastedCookies("");
@@ -1267,7 +1260,7 @@ function App() {
       localStorage.removeItem('utik_song_name');
       localStorage.removeItem('utik_artist_name');
       localStorage.removeItem('utik_target_duration');
-      
+
       // Reset state
       setSessionId(null);
       setStatus('IDLE');
@@ -1495,11 +1488,11 @@ function App() {
 
   return (
     <div className={`min-h-screen transition-colors duration-500 overflow-x-hidden ${isDark ? 'dark bg-[#050505]' : 'bg-slate-50'}`}>
-      
+
       {activeVncJobId && !activeVncJobId.startsWith('CLOSED_') && (
-        <LiveViewer 
-          jobId={activeVncJobId} 
-          onClose={() => setActiveVncJobId('CLOSED_' + activeVncJobId)} 
+        <LiveViewer
+          jobId={activeVncJobId}
+          onClose={() => setActiveVncJobId('CLOSED_' + activeVncJobId)}
         />
       )}
 
@@ -1525,7 +1518,7 @@ function App() {
               </div>
             </div>
           </div>
-          
+
           {/* Mobile Right Buttons (Hidden on sm) */}
           <div className="flex sm:hidden items-center gap-1.5">
             <button onClick={handleResetSession} className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:scale-105 rounded-full transition-all duration-300 active:scale-90 flex items-center justify-center border border-red-500/20 dark:border-red-500/30">
@@ -1562,8 +1555,8 @@ function App() {
             </div>
           </div>
           <div className="h-8 w-px bg-slate-200 dark:bg-white/10 mx-2" />
-          <button 
-            onClick={handleResetSession} 
+          <button
+            onClick={handleResetSession}
             className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:scale-105 rounded-full transition-all duration-300 active:scale-90 flex items-center justify-center border border-red-500/20 dark:border-red-500/30"
             title="Reset Session"
           >
@@ -1607,19 +1600,18 @@ function App() {
 
               {/* Google Auth Card — Landing Page */}
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="max-w-3xl mx-auto">
-                <div className={`relative overflow-hidden rounded-2xl border transition-all duration-500 ${
-                  googleUser 
-                    ? 'bg-gradient-to-r from-green-500/5 via-emerald-500/5 to-green-500/5 dark:from-green-500/10 dark:via-emerald-500/5 dark:to-green-500/10 border-green-500/20 dark:border-green-500/15' 
+                <div className={`relative overflow-hidden rounded-2xl border transition-all duration-500 ${googleUser
+                    ? 'bg-gradient-to-r from-green-500/5 via-emerald-500/5 to-green-500/5 dark:from-green-500/10 dark:via-emerald-500/5 dark:to-green-500/10 border-green-500/20 dark:border-green-500/15'
                     : 'bg-white/80 dark:bg-white/[0.03] border-slate-200 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-500/20'
-                }`}>
+                  }`}>
                   <div className="px-5 py-3.5 flex items-center justify-between gap-4">
                     {googleUser ? (
                       <>
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="relative flex-shrink-0">
-                            <img 
-                              src={googleUser.picture} 
-                              alt={googleUser.name} 
+                            <img
+                              src={googleUser.picture}
+                              alt={googleUser.name}
                               className="w-9 h-9 rounded-full border-2 border-green-500/30"
                               onError={(e) => { e.target.src = "https://lh3.googleusercontent.com/a/default-user=s96-c"; }}
                             />
@@ -1635,7 +1627,7 @@ function App() {
                             <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{googleUser.email}</div>
                           </div>
                         </div>
-                        <button 
+                        <button
                           onClick={handleGoogleSignOut}
                           className="text-[10px] font-black text-red-500 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-colors active:scale-95 flex-shrink-0"
                         >
@@ -1694,12 +1686,11 @@ function App() {
                       value={directPastedCookies}
                       onChange={(e) => setDirectPastedCookies(e.target.value)}
                     />
-                    
+
                     <div className="flex items-center justify-between gap-4">
                       {directSyncResultMsg ? (
-                        <span className={`text-xs font-bold leading-normal truncate ${
-                          directSyncResultMsg.includes("🎉") ? "text-emerald-500" : "text-rose-500"
-                        }`}>
+                        <span className={`text-xs font-bold leading-normal truncate ${directSyncResultMsg.includes("🎉") ? "text-emerald-500" : "text-rose-500"
+                          }`}>
                           {directSyncResultMsg}
                         </span>
                       ) : (
@@ -1707,7 +1698,7 @@ function App() {
                           JSON format is recommended (from EditThisCookie or similar extensions).
                         </span>
                       )}
-                      
+
                       <button
                         type="button"
                         onClick={handleDirectCookiesSync}
@@ -1798,14 +1789,14 @@ function App() {
                               </label>
                               <span className="text-xs font-black text-emerald-500">{targetDuration}s</span>
                             </div>
-                            <input 
-                              type="range" 
-                              min="5" 
-                              max="60" 
-                              step="5" 
-                              value={targetDuration} 
-                              onChange={(e) => setTargetDuration(parseInt(e.target.value))} 
-                              className="w-full h-2 bg-slate-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:shadow-lg" 
+                            <input
+                              type="range"
+                              min="5"
+                              max="60"
+                              step="5"
+                              value={targetDuration}
+                              onChange={(e) => setTargetDuration(parseInt(e.target.value))}
+                              className="w-full h-2 bg-slate-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:shadow-lg"
                             />
                             <div className="flex justify-between mt-2 text-[9px] font-bold text-slate-400">
                               <span>5s</span>
@@ -2010,30 +2001,30 @@ function App() {
 
       <AnimatePresence>
         {showSyncGuideModal && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-[250] flex items-center justify-center p-4 md:p-6 overflow-y-auto"
           >
             {/* Backdrop */}
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              onClick={() => setShowSyncGuideModal(false)} 
-              className="absolute inset-0 bg-black/70 backdrop-blur-[15px] transition-all duration-300" 
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSyncGuideModal(false)}
+              className="absolute inset-0 bg-black/70 backdrop-blur-[15px] transition-all duration-300"
             />
 
             {/* Modal Card */}
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
-              animate={{ opacity: 1, scale: 1, y: 0 }} 
-              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-lg bg-white dark:bg-[#1a1a1c] rounded-3xl border border-slate-200 dark:border-white/10 p-6 md:p-8 shadow-[0_0_50px_rgba(168,85,247,0.15)] flex flex-col gap-6 max-h-[90vh] overflow-y-auto"
             >
               {/* Close Button */}
-              <button 
+              <button
                 onClick={() => setShowSyncGuideModal(false)}
                 className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 flex items-center justify-center text-slate-500 dark:text-slate-300 transition-all cursor-pointer font-bold border-none"
               >
@@ -2061,7 +2052,7 @@ function App() {
                     <h4 className="text-sm font-black text-slate-800 dark:text-white mb-0.5 uppercase tracking-wide">📥 Download Sync Extension</h4>
                     <p className="text-xs text-slate-500 leading-relaxed font-medium">Click the button below to get the official sync package. Unzip the folder to a permanent, safe location on your computer.</p>
                     <div className="mt-2">
-                      <a 
+                      <a
                         href={`${API_BASE}/api/extension/download`}
                         className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-black text-[11px] uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer decoration-none"
                       >
@@ -2099,7 +2090,7 @@ function App() {
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-black text-slate-800 dark:text-white mb-0.5 uppercase tracking-wide">⚡ Trigger Sync</h4>
                     <p className="text-xs text-slate-500 leading-relaxed font-medium mb-3">
-                      {extensionActive 
+                      {extensionActive
                         ? `Perfect! The extension is connected. Click the button below to fetch and securely sync your session cookies in 1-click!`
                         : `Once loaded, return here (the extension status above will switch to CONNECTED) to trigger the secure automatic sync.`
                       }
@@ -2140,24 +2131,24 @@ function App() {
                   onChange={(e) => setPastedCookies(e.target.value)}
                 />
                 <div className="flex gap-2">
-                  <input 
-                    type="file" 
-                    id="cookie-file-upload-modal" 
-                    accept=".json,.txt" 
-                    className="hidden" 
+                  <input
+                    type="file"
+                    id="cookie-file-upload-modal"
+                    accept=".json,.txt"
+                    className="hidden"
                     onChange={(e) => {
                       handleCookieFileUpload(e);
                       setShowSyncGuideModal(false);
-                    }} 
+                    }}
                   />
-                  <button 
+                  <button
                     type="button"
                     onClick={() => document.getElementById("cookie-file-upload-modal").click()}
                     className="flex-1 text-center text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-white/5 py-2.5 rounded-xl transition-all cursor-pointer border-none"
                   >
                     📁 Upload File
                   </button>
-                  <button 
+                  <button
                     type="button"
                     onClick={handlePastedCookiesSync}
                     disabled={!pastedCookies.trim() || syncingExtension}
