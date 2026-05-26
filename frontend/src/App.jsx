@@ -1080,6 +1080,8 @@ function App() {
 
           if (vnc_active) {
             setActiveVncJobId(jobId);
+          } else if (activeVncJobId === jobId) {
+            setActiveVncJobId(null);
           }
 
           if (st === 'AUTHENTICATED') {

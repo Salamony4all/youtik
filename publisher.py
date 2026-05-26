@@ -220,6 +220,11 @@ class VirtualDisplay:
         self._running = True
         print("[VNC] Virtual display stack ready ✓")
 
+    @property
+    def is_vnc_ready(self):
+        """Check if websockify is actually running and proxying VNC."""
+        return self._running and self.ws_proc is not None and self.ws_proc.poll() is None
+
     async def release(self):
         """Decrement active session count; stop stack if no sessions remain."""
         self._active_sessions = max(0, self._active_sessions - 1)
@@ -315,7 +320,7 @@ async def _run_google_login(job_id: str):
             try:
                 virtual_display = await VirtualDisplay.get_instance()
                 headless = False
-                login_jobs[job_id]["vnc_active"] = True
+                login_jobs[job_id]["vnc_active"] = virtual_display.is_vnc_ready
                 login_jobs[job_id]["vnc_ws_port"] = virtual_display.ws_port
                 login_jobs[job_id]["detail"] = "Virtual display ready — launching visible browser for Google sign-in…"
             except Exception as e:
@@ -587,7 +592,7 @@ async def _publish_tiktok(
                 virtual_display = await VirtualDisplay.get_instance()
                 headless = False  # Run visible on virtual display for VNC streaming
                 if job_id in publish_jobs:
-                    publish_jobs[job_id]["vnc_active"] = True
+                    publish_jobs[job_id]["vnc_active"] = virtual_display.is_vnc_ready
                     publish_jobs[job_id]["vnc_ws_port"] = virtual_display.ws_port
             except Exception:
                 headless = True
@@ -709,7 +714,7 @@ async def _publish_playwright(
                 headless = False  # Run non-headless on the virtual display!
                 # Store VNC info in the job so the frontend can connect
                 if job_id in publish_jobs:
-                    publish_jobs[job_id]["vnc_active"] = True
+                    publish_jobs[job_id]["vnc_active"] = virtual_display.is_vnc_ready
                     publish_jobs[job_id]["vnc_ws_port"] = virtual_display.ws_port
                 _set_status(job_id, "LAUNCHING", f"Virtual display ready — launching visible browser for {platform}…")
             except Exception as vd_err:
