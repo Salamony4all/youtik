@@ -710,7 +710,9 @@ import asyncio
 
 @app.websocket("/api/vnc/{job_id}")
 async def vnc_proxy(websocket: WebSocket, job_id: str):
-    await websocket.accept(subprotocol="binary")
+    requested = websocket.headers.get("sec-websocket-protocol", "")
+    subprotocol = "binary" if "binary" in requested else None
+    await websocket.accept(subprotocol=subprotocol)
     print(f"[VNC Proxy] WebSocket accepted for job {job_id}, proxying to websockify...", flush=True)
     
     import websockets
