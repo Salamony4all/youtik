@@ -60,12 +60,19 @@ except Exception as e:
 
 
 def cleanup_workspace(full=True):
-    dirs_to_clean = ["temp"]
+    try:
+        from database import db
+        db.clear_all_cookies()
+        print("[SYSTEM] Cleared persistent database cookies.")
+    except Exception as e:
+        print(f"[WARNING] Failed to clear database cookies: {e}")
+
+    dirs_to_clean = ["temp", "sessions"]
     if full:
         dirs_to_clean.append("output")
-        print("[SYSTEM] Performing FULL workspace reset (temp + output)...")
+        print("[SYSTEM] Performing FULL workspace reset (temp + output + sessions)...")
     else:
-        print("[SYSTEM] Refreshing workspace (cleaning temp)...")
+        print("[SYSTEM] Refreshing workspace (cleaning temp + sessions)...")
         
     for d in dirs_to_clean:
         if os.path.exists(d):

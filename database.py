@@ -88,5 +88,16 @@ class CookieDatabase:
         finally:
             conn.close()
 
+    def clear_all_cookies(self):
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("DELETE FROM user_cookies")
+            conn.commit()
+        except Exception as e:
+            print("[DB] Failed to clear cookies:", e)
+        finally:
+            conn.close()
+
 # Global database manager instance
 db = CookieDatabase()
