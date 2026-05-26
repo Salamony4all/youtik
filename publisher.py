@@ -360,7 +360,7 @@ async def _run_google_login(job_id: str):
             page = context.pages[0] if context.pages else await context.new_page()
 
             # Navigate to YouTube Studio — it will redirect to Google sign-in if needed
-            await page.goto("https://studio.youtube.com", wait_until="domcontentloaded")
+            await page.goto("https://studio.youtube.com", wait_until="domcontentloaded", timeout=0)
             await page.wait_for_timeout(3000)
 
             current_url = page.url
@@ -427,7 +427,7 @@ async def _run_google_login(job_id: str):
             login_jobs[job_id]["detail"] = "Please sign in to your Google account in the browser window…"
 
             logged_in = False
-            for _ in range(600):  # up to 10 minutes
+            for _ in range(1800):  # up to 30 minutes
                 await page.wait_for_timeout(1000)
                 try:
                     cur = page.url
