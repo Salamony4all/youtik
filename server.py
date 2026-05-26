@@ -714,8 +714,15 @@ async def vnc_proxy(websocket: WebSocket, job_id: str):
     print(f"[VNC Proxy] WebSocket accepted for job {job_id}, proxying to websockify...", flush=True)
     
     import websockets
+    from publisher import login_jobs, publish_jobs
+    
+    ws_port = 6080
+    job = login_jobs.get(job_id) or publish_jobs.get(job_id)
+    if job and "vnc_ws_port" in job:
+        ws_port = job["vnc_ws_port"]
+        
     try:
-        async with websockets.connect("ws://127.0.0.1:6080", subprotocols=["binary"]) as ws:
+        async with websockets.connect(f"ws://127.0.0.1:{ws_port}", subprotocols=["binary"]) as ws:
             async def client_to_server():
                 try:
                     while True:
