@@ -193,9 +193,13 @@ const PublishDropdown = ({ clip, publishStatus, setPublishStatus, googleUser, se
           const { status: st, detail, vnc_active } = statusRes.data;
           setPublishStatus(prev => ({ ...prev, [key]: { status: st, detail, jobId } }));
           
-          if (vnc_active && showBrowser) {
-            setActiveVncJobId(jobId);
-          }
+          setActiveVncJobId(prev => {
+            if (vnc_active && showBrowser) {
+              return prev === 'CLOSED_' + jobId ? prev : jobId;
+            } else {
+              return prev === jobId ? null : prev;
+            }
+          });
 
           if (st === 'PUBLISHED' || st === 'ERROR') clearInterval(poll);
         } catch { clearInterval(poll); }
@@ -542,7 +546,7 @@ const PremiumSelect = ({ label, value, options, onChange, icon: Icon, color, isA
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute top-full mt-3 w-full bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/10 rounded-[22px] shadow-2xl z-[200] overflow-hidden"
+              className="mt-3 w-full bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/10 rounded-[22px] shadow-sm overflow-hidden"
             >
               <div className="p-2 max-h-[360px] overflow-y-auto custom-scrollbar">
                 {options.map((opt) => {
@@ -1077,11 +1081,13 @@ function App() {
           const { status: st, detail, user, vnc_active } = statusRes.data;
           setGoogleLoginDetail(detail || st);
 
-          if (vnc_active) {
-            setActiveVncJobId(jobId);
-          } else if (activeVncJobId === jobId) {
-            setActiveVncJobId(null);
-          }
+          setActiveVncJobId(prev => {
+            if (vnc_active) {
+              return prev === 'CLOSED_' + jobId ? prev : jobId;
+            } else {
+              return prev === jobId ? null : prev;
+            }
+          });
 
           if (st === 'AUTHENTICATED') {
             clearInterval(poll);
@@ -1453,10 +1459,10 @@ function App() {
   return (
     <div className={`min-h-screen transition-colors duration-500 overflow-x-hidden ${isDark ? 'dark bg-[#050505]' : 'bg-slate-50'}`}>
       
-      {activeVncJobId && (
+      {activeVncJobId && !activeVncJobId.startsWith('CLOSED_') && (
         <LiveViewer 
           jobId={activeVncJobId} 
-          onClose={() => setActiveVncJobId(null)} 
+          onClose={() => setActiveVncJobId('CLOSED_' + activeVncJobId)} 
         />
       )}
 
