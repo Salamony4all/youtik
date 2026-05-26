@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional, List, Dict
 
-DB_PATH = Path("./sessions/cookies.db")
+DB_PATH = Path(__file__).resolve().parent / "sessions" / "cookies.db"
 
 class CookieDatabase:
     def __init__(self):
