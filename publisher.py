@@ -645,6 +645,7 @@ async def _publish_tiktok(
                     from playwright.async_api import async_playwright
                     async with async_playwright() as pw:
                         browser = await pw.chromium.launch(
+                            channel="chrome",
                             headless=False,
                             args=[
                                 "--disable-blink-features=AutomationControlled",
@@ -818,6 +819,7 @@ async def _publish_playwright(
                 # Ephemeral, isolated browser context for this specific user
                 _set_status(job_id, "LAUNCHING", f"Launching clean ephemeral browser for {platform}…")
                 browser = await pw.chromium.launch(
+                    channel="chrome",
                     headless=headless,
                     args=[
                         "--disable-blink-features=AutomationControlled",
@@ -875,6 +877,7 @@ async def _publish_playwright(
                 profile_dir = str(GOOGLE_PROFILE_DIR)
                 context = await pw.chromium.launch_persistent_context(
                     user_data_dir=profile_dir,
+                    channel="chrome",
                     headless=headless,
                     args=[
                         "--disable-blink-features=AutomationControlled",
