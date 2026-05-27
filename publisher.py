@@ -732,6 +732,8 @@ async def _publish_tiktok(
             "tiktokautouploader not installed. Run: pip install tiktokautouploader",
         )
     except Exception as exc:
+        import traceback
+        traceback.print_exc()
         _set_status(job_id, "ERROR", f"TikTok upload failed: {exc}")
     finally:
         if virtual_display:
@@ -945,7 +947,9 @@ async def _publish_playwright(
                 await context.close()
 
     except Exception as exc:
-        _set_status(job_id, "ERROR", f"{platform} upload session failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        _set_status(job_id, "ERROR", f"{platform.title()} upload failed: {str(exc)}")
     finally:
         # Release the virtual display when done
         if virtual_display:
