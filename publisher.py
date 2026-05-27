@@ -633,12 +633,64 @@ async def _publish_tiktok(
         # Check if we have valid cookies on headless server
         if on_server:
             if not _is_tiktok_cookies_valid(account):
-                _set_status(
-                    job_id,
-                    "ERROR",
-                    "TikTok cookies are missing or have expired. Please log in locally to extract fresh cookies and update the TIKTOK_COOKIES environment variable in your Railway dashboard."
-                )
-                return
+                if not virtual_display:
+                    _set_status(
+                        job_id,
+                        "ERROR",
+                        "TikTok cookies are missing or have expired. Please log in locally to extract fresh cookies and update the TIKTOK_COOKIES environment variable in your Railway dashboard."
+                    )
+                    return
+                else:
+                    _set_status(job_id, "WAITING_LOGIN", "Please log in to TikTok in the browser window…")
+                    from playwright.async_api import async_playwright
+                    async with async_playwright() as pw:
+                        browser = await pw.chromium.launch(
+                            headless=False,
+                            args=[
+                                "--disable-blink-features=AutomationControlled",
+                                "--no-sandbox",
+                                "--disable-infobars",
+                                "--disable-dev-shm-usage",
+                                "--disable-gpu",
+                            ]
+                        )
+                        context = await browser.new_context(
+                            viewport={"width": 1280, "height": 720},
+                            locale="en-US",
+                            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                        )
+                        await context.add_init_script(_STEALTH_SCRIPT)
+                        page = await context.new_page()
+                        
+                        if job_id in publish_jobs:
+                            publish_jobs[job_id]["_page"] = page
+                            
+                        await page.goto("https://www.tiktok.com/login", wait_until="domcontentloaded")
+                        
+                        logged_in = False
+                        while not page.is_closed():
+                            await page.wait_for_timeout(1000)
+                            try:
+                                cookies = await context.cookies()
+                                has_session = any(c.get("name") in ["sessionid", "sessionid_ss", "sid_tt"] for c in cookies)
+                                if has_session and "login" not in page.url.lower():
+                                    logged_in = True
+                                    db.save_cookies(account, "tiktok", cookies)
+                                    cookies_str = json.dumps(cookies)
+                                    for name in ["TK_cookies.json", f"TK_cookies_{account}.json", "TK_cookies_default.json"]:
+                                        with open(name, "w", encoding="utf-8") as f:
+                                            f.write(cookies_str)
+                                    break
+                            except Exception:
+                                pass
+                                
+                        if job_id in publish_jobs:
+                            publish_jobs[job_id].pop("_page", None)
+                        await browser.close()
+                        
+                        if not logged_in:
+                            _set_status(job_id, "ERROR", "TikTok login was not completed (browser closed).")
+                            return
 
         _set_status(job_id, "UPLOADING", "Browser opening for TikTok upload…")
 
@@ -749,7 +801,7 @@ async def _publish_playwright(
                     print(f"Failed to parse {platform.upper()}_COOKIES env var:", e)
 
         # Check if we have dynamic cookies or local persistent context fallback
-        if not user_cookies and on_server:
+        if not user_cookies and on_server and not virtual_display:
             _set_status(
                 job_id,
                 "ERROR",
@@ -931,6 +983,9 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
 
         if "accounts.google.com" in page.url:
             raise Exception("Google sign-in was not completed (browser closed).")
+            
+        _set_status(job_id, "UPLOADING", "Login successful! Waiting for dashboard to load…")
+        await page.wait_for_timeout(5000)
 
     _set_status(job_id, "UPLOADING", "Uploading video to YouTube Shorts…")
 
