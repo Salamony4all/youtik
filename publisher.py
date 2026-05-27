@@ -705,16 +705,18 @@ async def _publish_tiktok(
             kwargs["hashtags"] = hashtags or []
         if "headless" in sig.parameters:
             kwargs["headless"] = headless
-        if "save_as_draft" in sig.parameters:
-            kwargs["save_as_draft"] = save_as_draft
-        elif "draft" in sig.parameters:
-            kwargs["draft"] = save_as_draft
 
         # tiktokautouploader is synchronous – run in a thread
         loop = asyncio.get_running_loop()
+        
+        def run_tiktok():
+            _thread_local.save_as_draft = save_as_draft
+            _thread_local.headless = headless
+            return upload_tiktok(**kwargs)
+
         await loop.run_in_executor(
             None,
-            lambda: upload_tiktok(**kwargs),
+            run_tiktok,
         )
 
         # Mark cookie directory as existing (the package manages its own cookies)
@@ -1076,6 +1078,13 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
         # Click the done/publish button
         done_btn = page.locator("#done-button, ytcp-button#done-button, ytcp-button:has-text('Save'), ytcp-button:has-text('Publish')").first
         if await done_btn.is_visible(timeout=5000):
+            if not headless:
+                _set_status(job_id, "UPLOADING", "Ready to save/publish! Browser is staying open so you can watch the upload and close the window when done.")
+                import asyncio
+                while not page.is_closed():
+                    await asyncio.sleep(1)
+                return
+
             await done_btn.click(force=True)
             
             # CRITICAL: Wait for upload transfer to complete before closing browser!
@@ -1084,8 +1093,8 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
             # YouTube shows a share/confirmation dialog when upload is finished. 
             # If not, wait for the uploads-dialog to hide, meaning it's fully done.
             try:
-                # Wait up to 120 seconds for the dialog to disappear or confirmation to show
-                await page.wait_for_selector("ytcp-video-share-dialog, ytcp-uploads-dialog[hidden]", timeout=120000)
+                # Wait up to 600 seconds for the dialog to disappear or confirmation to show
+                await page.wait_for_selector("ytcp-video-share-dialog, ytcp-uploads-dialog[hidden]", timeout=600000)
                 
                 # If share dialog appeared, close it
                 close_btn = page.locator("ytcp-button#close-button, ytcp-button:has-text('Close')").first
