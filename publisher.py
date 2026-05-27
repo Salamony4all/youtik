@@ -746,9 +746,9 @@ async def _publish_tiktok(
         tiktokautouploader.function._add_description_and_hashtags = monkeypatched_add_description
 
         def monkeypatched_submit(page, schedule, stealth, suppressprint, post_success_wait, schedule_success_wait):
-            print("[TikTok] Monkeypatch entered! Browser is visible:", not is_headless)
             is_draft = getattr(_thread_local, 'save_as_draft', False)
             is_headless = getattr(_thread_local, 'headless', True)
+            print("[TikTok] Monkeypatch entered! Browser is visible:", not is_headless)
             
             if is_draft:
                 if not suppressprint:
