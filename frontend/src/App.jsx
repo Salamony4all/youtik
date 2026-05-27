@@ -83,7 +83,22 @@ const LiveViewer = ({ jobId, onClose }) => {
         shared: true
       });
       rfbRef.current.scaleViewport = true;
-      rfbRef.current.resizeSession = true;
+      rfbRef.current.resizeSession = false; // Do not attempt to resize the server Xvfb session
+      
+      // Force the canvas to never exceed the container bounds
+      const enforceCanvasBounds = () => {
+        const canvases = containerRef.current.getElementsByTagName('canvas');
+        for (let i = 0; i < canvases.length; i++) {
+          canvases[i].style.maxWidth = '100%';
+          canvases[i].style.maxHeight = '100%';
+          canvases[i].style.objectFit = 'contain';
+        }
+      };
+      
+      // noVNC might recreate the canvas, so we observe mutations
+      const observer = new MutationObserver(enforceCanvasBounds);
+      observer.observe(containerRef.current, { childList: true, subtree: true });
+      
     } catch (e) {
       console.error("noVNC init error:", e);
     }
@@ -96,27 +111,29 @@ const LiveViewer = ({ jobId, onClose }) => {
   }, [jobId]);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center">
-      <div className="w-full h-16 shrink-0 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6">
-        <div className="flex items-center space-x-3">
-          <Monitor className="text-blue-500 w-5 h-5" />
-          <h2 className="text-lg font-medium text-white">Live Browser Viewer</h2>
-          <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse flex items-center">
-            <div className="w-1.5 h-1.5 bg-white rounded-full mr-1.5" />
-            LIVE
-          </span>
+    <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-4 sm:p-8">
+      <div className="w-full max-w-7xl h-full flex flex-col bg-gray-900 rounded-2xl overflow-hidden shadow-2xl border border-gray-700">
+        <div className="w-full h-16 shrink-0 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6">
+          <div className="flex items-center space-x-3">
+            <Monitor className="text-blue-500 w-5 h-5" />
+            <h2 className="text-lg font-medium text-white">Live Browser Viewer</h2>
+            <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse flex items-center">
+              <div className="w-1.5 h-1.5 bg-white rounded-full mr-1.5" />
+              LIVE
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+          >
+            Close Viewer
+          </button>
         </div>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
-        >
-          Close Viewer
-        </button>
+        <div
+          ref={containerRef}
+          className="flex-1 w-full h-[calc(100%-64px)] flex items-center justify-center overflow-hidden relative bg-black"
+        />
       </div>
-      <div
-        ref={containerRef}
-        className="flex-1 w-full min-h-0 flex items-center justify-center overflow-hidden relative"
-      />
     </div>
   );
 };
