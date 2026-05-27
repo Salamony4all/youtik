@@ -50,8 +50,9 @@ RUN curl -L -o /tmp/rustypipe.tar.xz https://codeberg.org/ThetaDev/rustypipe-bot
     rm /tmp/rustypipe.tar.xz
 
 # Install Playwright Chromium and its system dependencies
-# (phantomwright is a stealth wrapper around Playwright and uses the same browser binaries)
-RUN playwright install --with-deps chromium
+# Also install phantomwright's specific chromium version
+RUN playwright install --with-deps chromium && \
+    python -m phantomwright_driver install chromium
 
 # Copy ytdl-go from builder
 COPY --from=builder /go/bin/ytdl-go /usr/local/bin/ytdl-go
