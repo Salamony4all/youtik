@@ -713,6 +713,38 @@ async def _publish_tiktok(
         _thread_local = threading.local()
         
         import tiktokautouploader.function
+
+        original_add_desc = tiktokautouploader.function._add_description_and_hashtags
+        def monkeypatched_add_description(page, sim, video, description, hashtags, stealth, suppressprint):
+            print("[TikTok] Removing tutorial overlays before adding description...")
+            import time
+            time.sleep(1.0)
+            
+            # Remove joyride overlay if it blocks the screen
+            try:
+                page.evaluate("""() => {
+                    const elements = document.querySelectorAll('#react-joyride-portal, .react-joyride__overlay, .react-joyride__tooltip, .joyride-overlay, .joyride-tooltip');
+                    elements.forEach(el => el.remove());
+                }""")
+            except Exception as e:
+                pass
+
+            # Force click the modal buttons
+            for button_text in ["Cancel", "Got it", "Skip", "Next"]:
+                try:
+                    btn = page.locator(f"button:has-text('{button_text}')").first
+                    if btn.is_visible(timeout=500):
+                        if not suppressprint:
+                            print(f"Tutorial pop-up '{button_text}' detected, dismissing via force click...")
+                        btn.click(force=True, timeout=1000)
+                except Exception:
+                    pass
+
+            # Original function call
+            return original_add_desc(page, sim, video, description, hashtags, stealth, suppressprint)
+
+        tiktokautouploader.function._add_description_and_hashtags = monkeypatched_add_description
+
         def monkeypatched_submit(page, schedule, stealth, suppressprint, post_success_wait, schedule_success_wait):
             print("[TikTok] Monkeypatch entered! Browser is visible:", not is_headless)
             is_draft = getattr(_thread_local, 'save_as_draft', False)
