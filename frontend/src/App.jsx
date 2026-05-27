@@ -97,7 +97,7 @@ const LiveViewer = ({ jobId, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center">
-      <div className="w-full h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6">
+      <div className="w-full h-16 shrink-0 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6">
         <div className="flex items-center space-x-3">
           <Monitor className="text-blue-500 w-5 h-5" />
           <h2 className="text-lg font-medium text-white">Live Browser Viewer</h2>
@@ -115,7 +115,7 @@ const LiveViewer = ({ jobId, onClose }) => {
       </div>
       <div
         ref={containerRef}
-        className="flex-1 w-full flex items-center justify-center overflow-hidden relative"
+        className="flex-1 w-full min-h-0 flex items-center justify-center overflow-hidden relative"
       />
     </div>
   );
