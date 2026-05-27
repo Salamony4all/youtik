@@ -714,6 +714,7 @@ async def _publish_tiktok(
         
         import tiktokautouploader.function
         def monkeypatched_submit(page, schedule, stealth, suppressprint, post_success_wait, schedule_success_wait):
+            print("[TikTok] Monkeypatch entered! Browser is visible:", not is_headless)
             is_draft = getattr(_thread_local, 'save_as_draft', False)
             is_headless = getattr(_thread_local, 'headless', True)
             
@@ -760,14 +761,23 @@ async def _publish_tiktok(
         tiktokautouploader.function._submit_upload = monkeypatched_submit
 
         def run_tiktok():
+            print("[TikTok] Running upload_tiktok inside thread...")
             _thread_local.save_as_draft = save_as_draft
             _thread_local.headless = headless
-            return upload_tiktok(**kwargs)
+            try:
+                res = upload_tiktok(**kwargs)
+                print("[TikTok] upload_tiktok completed:", res)
+                return res
+            except Exception as e:
+                print("[TikTok] exception in upload_tiktok:", e)
+                raise e
 
+        print("[TikTok] Submitting run_tiktok to thread executor...")
         await loop.run_in_executor(
             None,
             run_tiktok,
         )
+        print("[TikTok] run_tiktok finished.")
 
         # Mark cookie directory as existing (the package manages its own cookies)
         cookie_dir = SESSIONS_DIR / "tiktok" / account
