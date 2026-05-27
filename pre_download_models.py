@@ -4,11 +4,9 @@ from huggingface_hub import snapshot_download
 # Ensure models directory exists
 os.makedirs("./models", exist_ok=True)
 
-# All Whisper models used by the app
+# Whisper model(s) to pre-download during Docker build
 models_to_download = [
     {"id": "IbrahimAmin/code-switched-egyptian-arabic-whisper-small", "local": "IbrahimAmin--code-switched-egyptian-arabic-whisper-small"},
-    {"id": "MAdel121/whisper-small-egyptian-arabic", "local": "MAdel121--whisper-small-egyptian-arabic"},
-    {"id": "mobiuslabsgmbh/faster-whisper-large-v3-turbo", "local": "models--mobiuslabsgmbh--faster-whisper-large-v3-turbo"},
 ]
 
 print(f"--- Starting Pre-download of You-Tik Studio Models ---")

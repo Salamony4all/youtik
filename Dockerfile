@@ -1,6 +1,9 @@
-# Use Python 3.10 slim as base
-FROM python:3.10-slim
+# Stage 1: Build ytdl-go
+FROM golang:1.24-alpine AS builder
+RUN go install github.com/lvcoi/ytdl-go@latest
 
+# Stage 2: Base Python image
+FROM python:3.10-slim
 # Install system dependencies (including ffmpeg, browser automation, and live browser streaming)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
@@ -42,6 +45,9 @@ RUN curl -L -o /tmp/rustypipe.tar.xz https://codeberg.org/ThetaDev/rustypipe-bot
 # Install Playwright Chromium and its system dependencies
 # (phantomwright is a stealth wrapper around Playwright and uses the same browser binaries)
 RUN playwright install --with-deps chromium
+
+# Copy ytdl-go from builder
+COPY --from=builder /go/bin/ytdl-go /usr/local/bin/ytdl-go
 
 # Copy application source code
 COPY . .

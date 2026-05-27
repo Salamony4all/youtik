@@ -704,39 +704,71 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
 
     ydl_succeeded = False
     last_error = None
-    for attempt in range(3):
-        try:
-            cmd_dl = build_yt_cmd(is_meta=False, fmt=ydl_format)
-            log(f"[INGEST] Running yt-dlp command: {' '.join(cmd_dl[:4])} ...")
-            # We capture stderr to read errors, stdout flows to console so user sees progress
-            result = subprocess.run(cmd_dl, stderr=subprocess.PIPE, text=True)
-            if result.returncode == 0:
-                ydl_succeeded = True
-                break
+    wav_path = f"{audio_base}.wav"
+
+    # 1. Try ytdl-go first
+    try:
+        log("[INGEST] Trying ytdl-go as the primary download method...")
+        ytdl_go_temp = os.path.join(temp_dir, "ytdl_go_temp")
+        os.makedirs(ytdl_go_temp, exist_ok=True)
+        
+        cmd_ytdl_go = ["ytdl-go", "-audio", url]
+        result = subprocess.run(cmd_ytdl_go, cwd=ytdl_go_temp, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            downloaded_files = os.listdir(ytdl_go_temp)
+            if downloaded_files:
+                dl_file = os.path.join(ytdl_go_temp, downloaded_files[0])
+                log(f"[INGEST] ytdl-go succeeded. Converting {dl_file} to WAV...")
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", dl_file, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", wav_path],
+                    check=True, capture_output=True
+                )
+                if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
+                    ydl_succeeded = True
+                    log(f"[INGEST] Success! Audio saved via ytdl-go to {wav_path}")
             else:
-                last_error = Exception(f"yt-dlp failed with return code {result.returncode}")
-                err_str = result.stderr
-                print(f"[ERROR] yt-dlp stderr: {err_str}")
-                
-                if attempt < 2 and ("WinError 32" in err_str or "Unable to rename file" in err_str):
-                    log(f"File lock detected during yt-dlp download/rename. Retrying in 5s... ({attempt + 1}/3)")
-                    time.sleep(5)
-                elif attempt < 2 and "Requested format is not available" in err_str:
-                    log(f"[RETRY] Format not available with current selector. Relaxing to 'best' on attempt {attempt + 2}/3...")
-                    ydl_format = 'best'
-                    time.sleep(2)
-                elif "Sign in to confirm" in err_str or "cookies" in err_str.lower() or "Requested format is not available" in err_str or "bot" in err_str.lower() or "403" in err_str:
-                    # Bot detection or format issue — break to try Playwright fallback
-                    log("[WARNING] yt-dlp blocked by YouTube bot detection. Will try Playwright fallback...")
+                log("[WARNING] ytdl-go reported success but no files found.")
+        else:
+            log(f"[WARNING] ytdl-go failed: {result.stderr.strip()}")
+            
+    except Exception as e:
+        log(f"[WARNING] ytdl-go execution failed: {e}")
+
+    # 2. If ytdl-go failed, fallback to yt-dlp
+    if not ydl_succeeded:
+        for attempt in range(3):
+            try:
+                cmd_dl = build_yt_cmd(is_meta=False, fmt=ydl_format)
+                log(f"[INGEST] Running yt-dlp command: {' '.join(cmd_dl[:4])} ...")
+                # We capture stderr to read errors, stdout flows to console so user sees progress
+                result = subprocess.run(cmd_dl, stderr=subprocess.PIPE, text=True)
+                if result.returncode == 0:
+                    ydl_succeeded = True
                     break
                 else:
-                    break  # Unknown error — try Playwright fallback anyway
-        except Exception as e:
-            last_error = e
-            break
+                    last_error = Exception(f"yt-dlp failed with return code {result.returncode}")
+                    err_str = result.stderr
+                    print(f"[ERROR] yt-dlp stderr: {err_str}")
+                    
+                    if attempt < 2 and ("WinError 32" in err_str or "Unable to rename file" in err_str):
+                        log(f"File lock detected during yt-dlp download/rename. Retrying in 5s... ({attempt + 1}/3)")
+                        time.sleep(5)
+                    elif attempt < 2 and "Requested format is not available" in err_str:
+                        log(f"[RETRY] Format not available with current selector. Relaxing to 'best' on attempt {attempt + 2}/3...")
+                        ydl_format = 'best'
+                        time.sleep(2)
+                    elif "Sign in to confirm" in err_str or "cookies" in err_str.lower() or "Requested format is not available" in err_str or "bot" in err_str.lower() or "403" in err_str:
+                        # Bot detection or format issue — break to try Playwright fallback
+                        log("[WARNING] yt-dlp blocked by YouTube bot detection. Will try Playwright fallback...")
+                        break
+                    else:
+                        break  # Unknown error — try Playwright fallback anyway
+            except Exception as e:
+                last_error = e
+                break
 
     # If yt-dlp failed, try the Playwright browser fallback
-    wav_path = f"{audio_base}.wav"
     if not ydl_succeeded:
         log("[FALLBACK] yt-dlp could not download. Attempting Playwright browser-based download...")
         pw_success = download_via_playwright(url, wav_path, raw_cookie_content=raw_cookie_content, log_fn=log_fn)
