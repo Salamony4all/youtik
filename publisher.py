@@ -161,7 +161,7 @@ class VirtualDisplay:
         # 1. Start Xvfb (virtual framebuffer)
         try:
             self.xvfb_proc = subprocess.Popen(
-                ["Xvfb", self.display, "-screen", "0", "1280x720x24", "-ac", "-nolisten", "tcp"],
+                ["Xvfb", self.display, "-screen", "0", "1920x1080x24", "-ac", "-nolisten", "tcp"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -351,7 +351,7 @@ async def _run_google_login(job_id: str):
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
                 ],
-                viewport={"width": 1280, "height": 800},
+                viewport={"width": 1920, "height": 1080},
                 locale="en-US",
             )
 
@@ -655,7 +655,7 @@ async def _publish_tiktok(
                             ]
                         )
                         context = await browser.new_context(
-                            viewport={"width": 1280, "height": 720},
+                            viewport={"width": 1920, "height": 1080},
                             locale="en-US",
                             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                         )
@@ -826,7 +826,7 @@ async def _publish_playwright(
                     ],
                 )
                 context = await browser.new_context(
-                    viewport={"width": 1280, "height": 720},
+                    viewport={"width": 1920, "height": 1080},
                     locale="en-US",
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 )
@@ -881,7 +881,7 @@ async def _publish_playwright(
                         "--disable-dev-shm-usage",
                         "--disable-gpu",
                     ],
-                    viewport={"width": 1280, "height": 720},
+                    viewport={"width": 1920, "height": 1080},
                     locale="en-US",
                 )
 
