@@ -616,13 +616,14 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
         log("[WARNING] No YouTube cookies found (tried youtube_cookies.txt, cookies.json, and YOUTUBE_COOKIES environment variable). Datacenter IPs will likely be blocked!")
 
     # Always use cookie-compatible and PO-token compatible clients to utilize the rustypipe plugin
-    player_clients = ['web_creator', 'mweb', 'web']
+    player_clients = ['ios', 'android', 'web_creator', 'mweb']
 
     ydl_format = 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best'
     
     if cookie_file:
         log(f"[INGEST] Injecting cookies into yt-dlp from: {cookie_file}")
-        log(f"[INGEST] Using cookie-compatible player clients: {player_clients}")
+    
+    log(f"[INGEST] Using player clients: {player_clients}")
 
     metadata = {
         "song_name": None,
@@ -648,7 +649,11 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
             ])
         if cookie_file:
             cmd.extend(["--cookies", cookie_file])
-            cmd.extend(["--extractor-args", f"youtube:player_client={','.join(player_clients)}"])
+            
+        # Always use modern player clients and botguard PO Token generator
+        extractor_args = f"youtube:player_client={','.join(player_clients)};rustypipe_bg_bin=/usr/local/bin/rustypipe-botguard"
+        cmd.extend(["--extractor-args", extractor_args])
+        
         cmd.append(url)
         return cmd
 
@@ -730,7 +735,10 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
             else:
                 log("[WARNING] ytdl-go reported success but no files found.")
         else:
-            log(f"[WARNING] ytdl-go failed: {result.stderr.strip()}")
+            err_msg = result.stderr.strip()
+            log(f"[WARNING] ytdl-go failed: {err_msg}")
+            if "embedding of this video has been disabled" in err_msg or "age restriction" in err_msg:
+                log("[INGEST] ytdl-go cannot bypass this specific restriction. Skipping directly to yt-dlp fallback...")
             
     except Exception as e:
         log(f"[WARNING] ytdl-go execution failed: {e}")
@@ -759,14 +767,54 @@ def run_ingest_step(url: str, temp_dir: str, log_fn=None, custom_cookies: Option
                         ydl_format = 'best'
                         time.sleep(2)
                     elif "Sign in to confirm" in err_str or "cookies" in err_str.lower() or "Requested format is not available" in err_str or "bot" in err_str.lower() or "403" in err_str:
-                        # Bot detection or format issue — break to try Playwright fallback
-                        log("[WARNING] yt-dlp blocked by YouTube bot detection. Will try Playwright fallback...")
+                        # Bot detection or format issue — break to try next fallbacks
+                        log("[WARNING] yt-dlp blocked by YouTube bot detection.")
                         break
                     else:
-                        break  # Unknown error — try Playwright fallback anyway
+                        log(f"[ERROR] Unhandled yt-dlp error. Retrying in 5s... ({attempt + 1}/3)")
+                        time.sleep(5)
             except Exception as e:
                 last_error = e
-                break
+                log(f"[ERROR] yt-dlp exception: {e}")
+                time.sleep(5)
+                
+    # 3. Cobalt API Fallback
+    if not ydl_succeeded:
+        log("[INGEST] yt-dlp failed. Attempting Cobalt API fallback via public instances...")
+        try:
+            import requests
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            }
+            payload = {"url": url, "isAudioOnly": True, "aFormat": "wav"}
+            
+            # Use public instances; if 403 Forbidden, we skip gracefully
+            for cobalt_api in ["https://api.cobalt.tools", "https://co.wuk.sh"]:
+                try:
+                    res = requests.post(f"{cobalt_api}/api/json", json=payload, headers=headers, timeout=10)
+                    if res.status_code == 200:
+                        data = res.json()
+                        dl_url = data.get("url")
+                        if dl_url:
+                            log(f"[INGEST] Cobalt API succeeded via {cobalt_api}. Downloading audio stream...")
+                            r = requests.get(dl_url, stream=True, timeout=60)
+                            if r.status_code == 200:
+                                with open(wav_path, 'wb') as f:
+                                    for chunk in r.iter_content(chunk_size=8192):
+                                        f.write(chunk)
+                                if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
+                                    ydl_succeeded = True
+                                    log(f"[INGEST] Success! Audio saved via Cobalt to {wav_path}")
+                                    break
+                except Exception as e:
+                    log(f"[WARNING] Cobalt API instance {cobalt_api} failed: {e}")
+                    
+            if not ydl_succeeded:
+                log("[WARNING] Cobalt API methods exhausted or blocked. Moving to Playwright fallback...")
+        except Exception as e:
+            log(f"[WARNING] Cobalt API execution failed: {e}")
 
     # If yt-dlp failed, try the Playwright browser fallback
     if not ydl_succeeded:
