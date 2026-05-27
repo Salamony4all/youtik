@@ -302,7 +302,7 @@ async def _run_google_login(job_id: str):
     login_jobs[job_id]["detail"] = "Opening browser for Google sign-in…"
 
     try:
-        from playwright.async_api import async_playwright  # type: ignore
+        from phantomwright_driver.async_api import async_playwright  # type: ignore
     except ImportError:
         login_jobs[job_id]["status"] = "ERROR"
         login_jobs[job_id]["detail"] = "Playwright not installed. Run: pip install playwright && playwright install chromium"
@@ -642,10 +642,9 @@ async def _publish_tiktok(
                     return
                 else:
                     _set_status(job_id, "WAITING_LOGIN", "Please log in to TikTok in the browser window…")
-                    from playwright.async_api import async_playwright
+                    from phantomwright_driver.async_api import async_playwright
                     async with async_playwright() as pw:
                         browser = await pw.chromium.launch(
-                            channel="chrome",
                             headless=False,
                             args=[
                                 "--disable-blink-features=AutomationControlled",
@@ -758,7 +757,7 @@ async def _publish_playwright(
     """Upload using Playwright with the persistent Google browser profile."""
     _set_status(job_id, "LAUNCHING", f"Starting browser for {platform}…")
     try:
-        from playwright.async_api import async_playwright  # type: ignore
+        from phantomwright_driver.async_api import async_playwright  # type: ignore
     except ImportError:
         _set_status(
             job_id,
@@ -819,7 +818,6 @@ async def _publish_playwright(
                 # Ephemeral, isolated browser context for this specific user
                 _set_status(job_id, "LAUNCHING", f"Launching clean ephemeral browser for {platform}…")
                 browser = await pw.chromium.launch(
-                    channel="chrome",
                     headless=headless,
                     args=[
                         "--disable-blink-features=AutomationControlled",
@@ -877,7 +875,6 @@ async def _publish_playwright(
                 profile_dir = str(GOOGLE_PROFILE_DIR)
                 context = await pw.chromium.launch_persistent_context(
                     user_data_dir=profile_dir,
-                    channel="chrome",
                     headless=headless,
                     args=[
                         "--disable-blink-features=AutomationControlled",
