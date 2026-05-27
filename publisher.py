@@ -709,6 +709,56 @@ async def _publish_tiktok(
         # tiktokautouploader is synchronous – run in a thread
         loop = asyncio.get_running_loop()
         
+        import threading
+        _thread_local = threading.local()
+        
+        import tiktokautouploader.function
+        def monkeypatched_submit(page, schedule, stealth, suppressprint, post_success_wait, schedule_success_wait):
+            is_draft = getattr(_thread_local, 'save_as_draft', False)
+            is_headless = getattr(_thread_local, 'headless', True)
+            
+            if is_draft:
+                if not suppressprint:
+                    print("Monkeypatch: Saving as draft instead of posting...")
+                try:
+                    page.click('button:has-text("Save draft")', timeout=10000)
+                except Exception:
+                    pass
+                if not suppressprint:
+                    print("Draft saved!")
+            else:
+                try:
+                    page.click('button:has-text("Post")[data-e2e="post_video_button"]', timeout=2000)
+                except Exception:
+                    try:
+                        page.click('button:has-text("Post")[aria-disabled="false"]', timeout=2000, force=True)
+                    except Exception:
+                        pass
+                
+                # Check for copyright modal
+                try:
+                    modal_post = page.locator('button:has-text("Post now")')
+                    if modal_post.is_visible(timeout=3000):
+                        modal_post.click()
+                except Exception:
+                    pass
+
+            if not is_headless:
+                if not suppressprint:
+                    print("Monkeypatch: Leaving browser open for user to review...")
+                import time
+                while not page.is_closed():
+                    try:
+                        time.sleep(1)
+                    except Exception:
+                        break
+            else:
+                page.close()
+            
+            return None
+
+        tiktokautouploader.function._submit_upload = monkeypatched_submit
+
         def run_tiktok():
             _thread_local.save_as_draft = save_as_draft
             _thread_local.headless = headless
