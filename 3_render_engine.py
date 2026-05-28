@@ -307,7 +307,7 @@ def render_video(slicing_json_path: str, audio_path: str, output_dir: str, subti
         print(f"Rendering Clip {scene_idx}: {item['title']}...")
         
         try:
-            ffmpeg.output(v_stream, a_stream, clip_output_path, vcodec='libx264', acodec='aac', preset='fast').run(overwrite_output=True, capture_stderr=True)
+            ffmpeg.output(v_stream, a_stream, clip_output_path, vcodec='libx264', acodec='aac', preset='fast', threads=1).run(overwrite_output=True, capture_stderr=True)
             generated_clips.append(clip_output_path)
             print(f"Success: {clip_output_path}")
             

@@ -801,31 +801,31 @@ const ReviewPortal = ({ sessionId, onCommit, isDark }) => {
 
       <div className="grid grid-cols-1 gap-6 pb-20">
         {data.semantics.map((stanza, idx) => (
-          <motion.div key={idx} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.05 }} className={`glass-card p-8 group relative overflow-hidden border-white/10 transition-all duration-500 ${playingIdx === idx ? 'border-yt-red/50 ring-1 ring-yt-red/20 shadow-[0_0_30px_rgba(255,0,0,0.1)]' : 'hover:border-yt-red/30'}`}>
+          <motion.div key={idx} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.05 }} className={`glass-card p-4 sm:p-8 group relative overflow-hidden border-white/10 transition-all duration-500 ${playingIdx === idx ? 'border-yt-red/50 ring-1 ring-yt-red/20 shadow-[0_0_30px_rgba(255,0,0,0.1)]' : 'hover:border-yt-red/30'}`}>
             <div className={`absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-yt-red to-tk-pink transition-opacity duration-500 ${playingIdx === idx ? 'opacity-100' : 'opacity-40 group-hover:opacity-100'}`}></div>
-            <div className="flex flex-col lg:flex-row gap-8">
+            <div className="flex flex-col lg:flex-row gap-6 sm:gap-8">
               <div className="flex-1 space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <button onClick={() => togglePlayStanza(idx)} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg active:scale-90 ${playingIdx === idx ? 'bg-yt-red text-white' : 'bg-yt-red/10 text-yt-red hover:bg-yt-red hover:text-white'}`}>
-                      {playingIdx === idx ? <Pause size={24} fill="currentColor" /> : <Play size={24} className="ml-1" fill="currentColor" />}
+                <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                    <button onClick={() => togglePlayStanza(idx)} className={`w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg active:scale-90 ${playingIdx === idx ? 'bg-yt-red text-white' : 'bg-yt-red/10 text-yt-red hover:bg-yt-red hover:text-white'}`}>
+                      {playingIdx === idx ? <Pause size={20} className="sm:w-6 sm:h-6" fill="currentColor" /> : <Play size={20} className="ml-1 sm:w-6 sm:h-6" fill="currentColor" />}
                     </button>
-                    <div className="flex flex-col">
+                    <div className="flex flex-col flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Precision Slicing</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 truncate">Precision Slicing</span>
                         {playingIdx === idx && (
-                          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-yt-red/10 text-yt-red text-[8px] font-black uppercase animate-pulse">
+                          <span className="flex shrink-0 items-center gap-1.5 px-2 py-0.5 rounded-full bg-yt-red/10 text-yt-red text-[8px] font-black uppercase animate-pulse">
                             <div className="w-1 h-1 rounded-full bg-yt-red"></div> Live
                           </span>
                         )}
                       </div>
-                      <div className="w-64">
+                      <div className="w-full sm:w-64">
                         <RangeSlider max={totalDuration || 300} start={stanza.start_time} end={stanza.end_time} onSeek={seekAudio} onChange={(s, e) => handleSliderChange(idx, s, e)} />
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => handleRemoveStanza(idx)} className="p-2.5 text-slate-400 hover:text-yt-red hover:bg-yt-red/10 rounded-xl transition-all"><Trash2 size={20} /></button>
+                  <div className="flex items-center shrink-0">
+                    <button onClick={() => handleRemoveStanza(idx)} className="p-2 sm:p-2.5 text-slate-400 hover:text-yt-red hover:bg-yt-red/10 rounded-xl transition-all"><Trash2 size={20} /></button>
                   </div>
                 </div>
 
@@ -1361,6 +1361,9 @@ function App() {
 
         if (res.data.status === 'COMPLETED' || res.data.status === 'ERROR') {
           isPolling = false;
+          if (res.data.status === 'COMPLETED') {
+            setActiveTab('results');
+          }
         }
       } catch (err) {
         if (err.response && err.response.status === 404) {
@@ -1749,16 +1752,16 @@ function App() {
                       {mode === 'clip' && (
                         <>
                           <div className="flex flex-col md:flex-row items-center gap-2">
-                            <div className="flex-1 flex items-center gap-3 px-6 py-4 w-full bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 focus-within:border-yt-red transition-all">
-                              <LinkIcon className="text-slate-400" size={20} />
-                              <input type="text" placeholder="Paste YouTube, TikTok or Instagram URL..." className="bg-transparent border-none outline-none w-full text-[15px] text-slate-900 dark:text-white font-bold placeholder:text-slate-400" value={url} onChange={(e) => setUrl(e.target.value)} />
+                            <div className="flex-1 flex items-center gap-3 px-4 sm:px-6 py-4 w-full bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 focus-within:border-yt-red transition-all">
+                              <LinkIcon className="text-slate-400 shrink-0" size={20} />
+                              <input type="text" placeholder="Paste YouTube, TikTok or Instagram URL..." className="bg-transparent border-none outline-none w-full text-[14px] sm:text-[15px] text-slate-900 dark:text-white font-bold placeholder:text-slate-400" value={url} onChange={(e) => setUrl(e.target.value)} />
                             </div>
-                            <div className="flex items-center gap-3 px-4 py-3 bg-slate-200/50 dark:bg-white/10 rounded-xl">
+                            <div className="flex items-center justify-between md:justify-start w-full md:w-auto gap-3 px-4 py-3 bg-slate-200/50 dark:bg-white/10 rounded-xl">
                               <div className="flex flex-col">
                                 <span className="text-[10px] font-black uppercase tracking-tighter text-slate-500 dark:text-slate-400">Workflow</span>
                                 <span className="text-xs font-bold text-slate-900 dark:text-white">Let Me Edit</span>
                               </div>
-                              <button onClick={() => setManualReview(!manualReview)} className={`w-12 h-6 rounded-full transition-all relative ${manualReview ? 'bg-yt-red' : 'bg-slate-300 dark:bg-white/10'}`}>
+                              <button onClick={() => setManualReview(!manualReview)} className={`w-12 h-6 shrink-0 rounded-full transition-all relative ${manualReview ? 'bg-yt-red' : 'bg-slate-300 dark:bg-white/10'}`}>
                                 <motion.div animate={{ x: manualReview ? 26 : 4 }} className="absolute top-1 left-0 w-4 h-4 rounded-full bg-white shadow-sm" />
                               </button>
                             </div>
