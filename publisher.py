@@ -750,6 +750,16 @@ async def _publish_tiktok(
             is_headless = getattr(_thread_local, 'headless', True)
             print("[TikTok] Monkeypatch entered! Browser is visible:", not is_headless)
             
+            # Disable copyright and content checks to prevent hanging
+            try:
+                page.evaluate("""() => {
+                    document.querySelectorAll('button[role="switch"][aria-checked="true"], input[type="checkbox"]:checked').forEach(el => el.click());
+                }""")
+                import time
+                time.sleep(1.0)
+            except Exception:
+                pass
+            
             if is_draft:
                 if not suppressprint:
                     print("Monkeypatch: Saving as draft instead of posting...")
