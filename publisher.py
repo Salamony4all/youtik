@@ -760,6 +760,17 @@ async def _publish_tiktok(
             except Exception:
                 pass
             
+            if not is_headless:
+                if not suppressprint:
+                    print("Monkeypatch: Leaving browser open for user to manually complete and publish...")
+                import time
+                while not page.is_closed():
+                    try:
+                        time.sleep(1)
+                    except Exception:
+                        break
+                return None
+
             if is_draft:
                 if not suppressprint:
                     print("Monkeypatch: Saving as draft instead of posting...")
@@ -786,18 +797,7 @@ async def _publish_tiktok(
                 except Exception:
                     pass
 
-            if not is_headless:
-                if not suppressprint:
-                    print("Monkeypatch: Leaving browser open for user to review...")
-                import time
-                while not page.is_closed():
-                    try:
-                        time.sleep(1)
-                    except Exception:
-                        break
-            else:
-                page.close()
-            
+            page.close()
             return None
 
         tiktokautouploader.function._submit_upload = monkeypatched_submit
@@ -1132,6 +1132,13 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
 
         _set_status(job_id, "UPLOADING", "Video uploading, waiting for processing…")
         
+        if not headless:
+            _set_status(job_id, "UPLOADING", "Ready! Please complete the upload manually and close the browser window.")
+            import asyncio
+            while not page.is_closed():
+                await asyncio.sleep(1)
+            return
+
         # Select "Not made for kids" (YouTube requires this)
         try:
             not_for_kids_radio = page.locator("tp-yt-paper-radio-button[name='VIDEO_MADE_FOR_KIDS_NOT_MADE_FOR_KIDS'], tp-yt-paper-radio-button:has-text('No, it\\'s not made for kids')").first
@@ -1180,12 +1187,6 @@ async def _upload_youtube(job_id, page, video_path, caption, save_as_draft=False
         # Click the done/publish button
         done_btn = page.locator("#done-button, ytcp-button#done-button, ytcp-button:has-text('Save'), ytcp-button:has-text('Publish')").first
         if await done_btn.is_visible(timeout=5000):
-            if not headless:
-                _set_status(job_id, "UPLOADING", "Ready to save/publish! Browser is staying open so you can watch the upload and close the window when done.")
-                import asyncio
-                while not page.is_closed():
-                    await asyncio.sleep(1)
-                return
 
             await done_btn.click(force=True)
             
