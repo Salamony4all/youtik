@@ -37,6 +37,7 @@
   ],
   "action": {
     "default_icon": "icon128.png",
-    "default_title": "You-Tik Session Sync"
+    "default_title": "You-Tik Session Sync",
+    "default_popup": "popup.html"
   }
 }

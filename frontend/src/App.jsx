@@ -2138,6 +2138,22 @@ function App() {
                 </div>
               </div>
 
+              {/* Android / Mobile Sync */}
+              {/android/i.test(navigator.userAgent) && !extensionActive && (
+                <div className="border-t border-slate-100 dark:border-white/5 pt-4 mt-2 flex flex-col gap-3">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">📱 Android Detected</span>
+                  <p className="text-xs text-slate-500 leading-normal font-medium">
+                    You can securely sync cookies right on your phone! Install <strong>Kiwi Browser</strong> from the Play Store (it supports our Chrome Extension), then open You-Tik in it.
+                  </p>
+                  <a
+                    href={`intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;package=com.kiwibrowser.browser;end`}
+                    className="w-full text-center text-[11px] font-black text-white bg-[#303030] hover:bg-black py-3 rounded-xl transition-all cursor-pointer shadow-md active:scale-[0.98] border border-white/10 uppercase tracking-wider block decoration-none"
+                  >
+                    🥝 Open You-Tik in Kiwi Browser
+                  </a>
+                </div>
+              )}
+
               {/* Alternate/Fallback Paste & Upload option */}
               <div className="border-t border-slate-100 dark:border-white/5 pt-4 mt-2 flex flex-col gap-3">
                 <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">⚡ One-Click Direct Paste (Fastest)</span>
