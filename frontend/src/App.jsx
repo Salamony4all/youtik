@@ -1682,7 +1682,17 @@ function App() {
                     </div>
                   )}
 
-
+                  {/android/i.test(navigator.userAgent) && (
+                    <div className="px-5 pb-4">
+                      <div className="h-px bg-slate-200 dark:bg-white/10 mb-3" />
+                      <a
+                        href={`intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;package=com.kiwibrowser.browser;end`}
+                        className="w-full text-center text-[11px] font-black text-white bg-[#303030] hover:bg-black py-2.5 rounded-xl transition-all cursor-pointer shadow-md active:scale-[0.98] border border-white/10 uppercase tracking-wider block decoration-none"
+                      >
+                        🥝 Open in Kiwi Browser for Sync
+                      </a>
+                    </div>
+                  )}
                 </div>
               </motion.div>
 
